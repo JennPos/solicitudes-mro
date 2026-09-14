@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Control de Inventario MRO</title>
+<script src="https://purchasing.rubber-mexico.com/app-switcher.js"></script>
+<script src="config.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+:root{
+  color-scheme:light;
+  --ink:#1a2233; --ink-2:#42506b; --muted:#71809b; --faint:#9aa6bd;
+  --surface:#ffffff; --surface-2:#f6f8fc; --bg:#eef1f8; --chrome:#1e2a4a;
+  --line:#e4e9f2; --line-2:#cfd7e6;
+  /* acento cobalto, más vivo que el azul de plano anterior */
+  --brand:#3457d5; --brand-2:#2743b4; --brand-tint:#ecf0fe; --brand-line:#c5d1fa;
+  /* paleta categórica: una por gráfica y por familia del catálogo */
+  --c1:#3457d5; --c2:#7048c8; --c3:#0e9aa7; --c4:#e08a1e;
+  --c5:#d6456e; --c6:#2f9e5f; --c7:#e2643a; --c8:#4a8fd4;
+  --c1b:#eaeefc; --c2b:#f2ecfb; --c3b:#e5f5f6; --c4b:#fdf3e4;
+  --c5b:#fceaef; --c6b:#e9f6ee; --c7b:#fdefe9; --c8b:#ecf3fc;
+  --ok:#16a34a; --ok-bg:#e8f8ee; --ok-line:#b7e6c8;
+  --warn:#d17d06; --warn-bg:#fef4e4; --warn-line:#f6ddb0;
+  --crit:#dc2626; --crit-bg:#fdedec; --crit-line:#f8c9c6;
+  --sans:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:"DM Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+}
+*{box-sizing:border-box;} html,body{margin:0;padding:0;}
+body{font-family:var(--sans);color:var(--ink);background:var(--bg);min-height:100vh;
+  font-size:14.5px;line-height:1.5;-webkit-font-smoothing:antialiased;}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+
+/* ---------- barra superior ---------- */
+.hdr{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  background:var(--chrome);padding:0 24px;height:60px;}
+.hdr .brand{display:flex;align-items:center;gap:12px;}
+.hdr .logo{width:34px;height:34px;border-radius:9px;background:var(--brand);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
+  letter-spacing:.04em;flex:none;box-shadow:0 2px 8px rgba(52,87,213,.4);}
+.hdr .t{font-weight:700;font-size:15.5px;color:#fff;letter-spacing:-.01em;line-height:1.3;}
+.hdr .s{font-size:11.5px;color:#93a1c4;letter-spacing:.02em;}
+.hdr-r{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.hdr .btn{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.16);color:#eef2fb;
+  height:32px;font-weight:600;border-radius:8px;}
+.hdr .btn:hover{background:rgba(255,255,255,.19);border-color:rgba(255,255,255,.28);color:#fff;}
+.conn{font-size:11.5px;color:#93a1c4;display:inline-flex;align-items:center;gap:6px;}
+.conn::before{content:"";width:7px;height:7px;border-radius:50%;background:#5c6b8f;}
+.conn.on::before{background:#38d38a;box-shadow:0 0 0 3px rgba(56,211,138,.2);}
+
+/* ---------- navegación ---------- */
+.wrap{max-width:1400px;margin:0 auto;padding:0 24px 64px;}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 -24px 22px;padding:0 24px;
+  background:var(--surface);border-bottom:1px solid var(--line);}
+.tab{background:none;border:none;border-bottom:2.5px solid transparent;color:var(--muted);
+  padding:14px 14px 11px;font-weight:600;font-size:14px;cursor:pointer;font-family:inherit;
+  display:inline-flex;align-items:center;gap:8px;margin-bottom:-1px;transition:.14s;}
+.tab:hover{color:var(--ink);}
+.tab.active{color:var(--brand);border-bottom-color:var(--brand);}
+.tab .bdg{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;
+  padding:0 6px;background:var(--crit);color:#fff;border-radius:999px;font-size:11px;font-weight:700;}
+
+/* ---------- superficies ---------- */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:20px 22px;margin-bottom:18px;box-shadow:0 1px 2px rgba(26,34,51,.04);}
+.sec-t{font-size:16px;font-weight:700;color:var(--ink);margin:0 0 15px;letter-spacing:-.01em;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.sec-t small{font-weight:500;font-size:13px;color:var(--muted);}
+
+/* ---------- botones ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 15px;
+  border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);border-radius:8px;
+  font-weight:600;font-size:13.5px;font-family:inherit;cursor:pointer;white-space:nowrap;transition:.14s;}
+.btn:hover{background:var(--surface-2);border-color:#b9c4da;color:var(--ink);}
+.btn:disabled{opacity:.42;cursor:default;}
+.btn:disabled:hover{background:var(--surface);border-color:var(--line-2);}
+.btn-primary{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 1px 3px rgba(52,87,213,.3);}
+.btn-primary:hover{background:var(--brand-2);border-color:var(--brand-2);color:#fff;}
+.btn-primary:disabled:hover{background:var(--brand);border-color:var(--brand);}
+.btn-danger{background:var(--crit-bg);border-color:var(--crit-line);color:var(--crit);}
+.btn-danger:hover{background:#fbdedb;border-color:var(--crit);color:var(--crit);}
+.btn-ok{background:var(--ok);border-color:var(--ok);color:#fff;box-shadow:0 1px 3px rgba(22,163,74,.28);}
+.btn-ok:hover{background:#128040;border-color:#128040;color:#fff;}
+.btn-sm{height:29px;padding:0 11px;font-size:12.5px;border-radius:7px;}
+.btn-icon{width:29px;padding:0;font-size:15px;font-weight:700;}
+
+/* ---------- tablas ---------- */
+table.tbl{width:100%;border-collapse:collapse;font-size:14px;}
+table.tbl th{text-align:left;color:var(--muted);font-size:11.5px;font-weight:600;letter-spacing:.01em;
+  padding:0 12px 9px;border-bottom:1px solid var(--line-2);white-space:nowrap;}
+table.tbl td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:middle;color:var(--ink-2);}
+table.tbl tbody tr:hover td{background:var(--surface-2);}
+table.tbl tr:last-child td{border-bottom:none;}
+table.tbl td.num,table.tbl th.num{text-align:right;font-variant-numeric:tabular-nums;}
+.mono{font-family:var(--mono);font-size:13px;}
+.tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -22px;padding:0 22px;}
+.row-click{cursor:pointer;}
+
+/* ---------- estados ---------- */
+.pill{display:inline-flex;align-items:center;padding:3px 11px;border-radius:999px;font-size:12px;
+  font-weight:600;white-space:nowrap;border:1px solid transparent;}
+.pill-ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-line);}
+.pill-pend{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-line);}
+.pill-run{background:var(--brand-tint);color:var(--brand);border-color:var(--brand-line);}
+.pill-block{background:var(--crit-bg);color:var(--crit);border-color:var(--crit-line);}
+.pill-maq{background:var(--c3b);color:var(--c3);border-color:#bce4e7;font-family:var(--mono);font-size:11.5px;}
+.pill-mute{background:var(--surface-2);color:var(--muted);border-color:var(--line-2);font-weight:500;}
+
+/* ---------- formularios ---------- */
+.form-control{width:100%;height:38px;padding:0 12px;border:1px solid var(--line-2);border-radius:8px;
+  background:var(--surface);color:var(--ink);font-size:14px;font-family:inherit;transition:.14s;}
+.form-control:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3.5px rgba(52,87,213,.15);}
+textarea.form-control{height:auto;min-height:66px;padding:10px 12px;resize:vertical;line-height:1.55;}
+select.form-control{cursor:pointer;}
+.lbl{display:block;color:var(--muted);font-size:12px;font-weight:600;margin-bottom:6px;}
+.field{margin-bottom:15px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:15px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;}
+.chk{width:16px;height:16px;accent-color:#3457d5;cursor:pointer;}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:15px;}
+.toolbar .grow{flex:1;min-width:220px;}
+.muted{color:var(--muted);}
+.empty{color:var(--muted);text-align:center;padding:40px 10px;font-size:14px;}
+
+/* ---------- segmentado ---------- */
+.seg{display:inline-flex;gap:3px;padding:3px;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:9px;}
+.seg button{border:none;background:transparent;color:var(--muted);font-weight:600;font-size:13px;
+  height:30px;padding:0 13px;cursor:pointer;font-family:inherit;white-space:nowrap;border-radius:7px;transition:.14s;}
+.seg button:hover{background:#fff;color:var(--ink);}
+.seg button.active{background:var(--brand);color:#fff;box-shadow:0 1px 3px rgba(52,87,213,.32);}
+.seg.on-dark{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.14);}
+.seg.on-dark button{color:#b9c5e0;}
+.seg.on-dark button:hover{background:rgba(255,255,255,.12);color:#fff;}
+.seg.on-dark button.active{background:#fff;color:var(--chrome);}
+
+/* ---------- indicadores ---------- */
+.kpis{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:18px;}
+.kpi{flex:1;min-width:172px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:16px 18px;box-shadow:0 1px 2px rgba(26,34,51,.04);position:relative;overflow:hidden;}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand);}
+.kpi.warn::before{background:var(--warn);} .kpi.bad::before{background:var(--crit);}
+.kpi.good::before{background:var(--ok);} .kpi.calm::before{background:var(--line-2);}
+.kpi .n{font-size:29px;font-weight:700;color:var(--ink);line-height:1.05;font-variant-numeric:tabular-nums;
+  letter-spacing:-.025em;}
+.kpi.warn .n{color:var(--warn);} .kpi.bad .n{color:var(--crit);} .kpi.good .n{color:var(--ok);}
+.kpi .l{font-size:12.5px;color:var(--ink-2);font-weight:600;margin-top:8px;}
+.kpi .d{font-size:12px;color:var(--faint);margin-top:2px;}
+.kpi.click{cursor:pointer;transition:.14s;}
+.kpi.click:hover{border-color:var(--brand-line);box-shadow:0 3px 10px rgba(52,87,213,.1);}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;}
+.tile{background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:14px 16px;}
+.tile .tv{font-size:22px;font-weight:700;color:var(--ink);line-height:1;font-variant-numeric:tabular-nums;
+  letter-spacing:-.02em;}
+.tile .tl{font-size:12px;color:var(--muted);font-weight:500;margin-top:7px;}
+
+/* ---------- stock ---------- */
+.stk{display:flex;align-items:center;gap:10px;justify-content:flex-end;}
+.stk .v{font-family:var(--mono);font-weight:500;font-size:13.5px;color:var(--ink);min-width:46px;
+  text-align:right;font-variant-numeric:tabular-nums;}
+.stk .v.low{color:var(--warn);} .stk .v.zero{color:var(--crit);}
+.sbar{position:relative;width:72px;height:6px;background:var(--line);border-radius:999px;}
+.sbar i{display:block;height:100%;border-radius:999px;background:var(--brand);}
+.sbar .mk{position:absolute;top:-3px;width:2px;height:12px;background:var(--ink-2);opacity:.45;border-radius:2px;}
+
+/* ---------- avisos ---------- */
+.hint{background:var(--brand-tint);border:1px solid var(--brand-line);color:#2743b4;
+  padding:12px 15px;border-radius:9px;font-size:13.5px;margin-bottom:15px;line-height:1.55;}
+.hint.warn{background:var(--warn-bg);border-color:var(--warn-line);color:#a8630a;}
+.hint.ok{background:var(--ok-bg);border-color:var(--ok-line);color:#13803c;}
+.banner{background:linear-gradient(90deg,var(--ok-bg),#fff 70%);border:1px solid var(--ok-line);
+  border-left:4px solid var(--ok);border-radius:var(--r);padding:18px 22px;margin-bottom:18px;}
+.banner .bt{font-size:15.5px;font-weight:700;color:#13803c;margin-bottom:11px;letter-spacing:-.01em;}
+.toast{position:fixed;bottom:22px;right:22px;background:var(--chrome);color:#eef2fb;padding:13px 17px;
+  border-radius:10px;font-size:13.5px;z-index:999;border-left:3px solid var(--brand);
+  box-shadow:0 12px 32px rgba(26,34,51,.3);max-width:min(430px,90vw);line-height:1.5;}
+
+/* ---------- modales ---------- */
+.modal-bg{position:fixed;inset:0;background:rgba(26,34,51,.45);display:flex;align-items:flex-start;
+  justify-content:center;z-index:400;padding:44px 16px;overflow:auto;}
+.modal{background:var(--surface);border-radius:14px;width:780px;max-width:96vw;padding:26px 28px 22px;
+  box-shadow:0 24px 64px rgba(20,28,48,.28);}
+.modal.wide{width:1060px;} .modal.narrow{width:490px;}
+.modal h3{margin:0;font-size:19px;font-weight:700;color:var(--ink);letter-spacing:-.02em;}
+.modal .sub{font-size:13.5px;color:var(--muted);margin:5px 0 22px;}
+.m-act{display:flex;justify-content:flex-end;gap:9px;margin-top:24px;padding-top:19px;
+  border-top:1px solid var(--line);flex-wrap:wrap;}
+
+/* ---------- documentos ---------- */
+.doc-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:17px 24px;
+  margin-bottom:20px;padding-bottom:19px;border-bottom:1px solid var(--line);}
+.doc-k{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px;}
+.doc-v{font-size:14.5px;color:var(--ink);font-weight:600;}
+.tl-item{font-size:13.5px;color:var(--ink-2);border-left:2px solid var(--line-2);padding:6px 0 6px 14px;margin:0 0 4px;}
+.tl-item b{color:var(--ink);font-weight:600;}
+.tl-item .w{color:var(--faint);font-size:12.5px;}
+
+/* ---------- gráficas ---------- */
+.dash-head{display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;
+  padding:20px 24px;background:linear-gradient(115deg,var(--chrome),#2e3f6d);border-radius:var(--r);
+  margin-bottom:18px;color:#fff;}
+.dash-head .dh-t{font-size:17px;font-weight:700;letter-spacing:-.01em;}
+.dash-head .dh-s{font-size:13px;color:#a8b5d4;margin-top:3px;}
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:18px;}
+.chart-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:19px 21px 15px;box-shadow:0 1px 2px rgba(26,34,51,.04);}
+.cc-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:18px;
+  padding-bottom:12px;border-bottom:1px solid var(--line);}
+.cc-t{font-weight:700;color:var(--ink);font-size:15px;letter-spacing:-.01em;}
+.cc-u{font-size:11.5px;color:var(--faint);font-weight:500;}
+.brow{margin-bottom:13px;} .brow:last-child{margin-bottom:4px;}
+.brow-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:6px;}
+.brow-name{font-size:13.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  display:flex;align-items:baseline;font-weight:500;}
+.brow-val{font-family:var(--mono);font-weight:500;font-size:13px;color:var(--ink);flex:none;
+  font-variant-numeric:tabular-nums;}
+.brow-val small{color:var(--faint);margin-left:5px;}
+.btrack{height:7px;background:var(--surface-2);border-radius:999px;overflow:hidden;}
+.bfill{height:100%;background:var(--brand);border-radius:999px;min-width:3px;transition:width .35s ease;}
+.rank{display:inline-block;width:17px;color:var(--faint);font-size:11.5px;font-weight:600;flex:none;}
+.cols{display:flex;align-items:flex-end;gap:11px;height:176px;padding-top:6px;}
+.col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:7px;min-width:0;}
+.col .cbar{width:100%;max-width:48px;background:linear-gradient(180deg,#4b6ce0,var(--brand));
+  border-radius:6px 6px 2px 2px;min-height:3px;transition:height .35s ease;}
+.col .cval{font-size:11.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;}
+.col .clab{font-size:11.5px;color:var(--muted);white-space:nowrap;}
+/* tonos por gráfica y por familia del catálogo */
+.t1 .bfill,.t1 .cbar{background:var(--c1);} .t2 .bfill{background:var(--c2);}
+.t3 .bfill{background:var(--c3);} .t4 .bfill{background:var(--c4);}
+.t5 .bfill{background:var(--c5);} .t6 .bfill{background:var(--c6);}
+.t7 .bfill{background:var(--c7);} .t8 .bfill{background:var(--c8);}
+
+@media(max-width:820px){
+  .grid2,.grid3{grid-template-columns:1fr;}
+  .wrap{padding:0 14px 48px;} .tabs{margin:0 -14px 18px;padding:0 14px;}
+  .hdr{padding:12px 14px;height:auto;} .kpi{min-width:145px;}
+  .tbl-scroll{margin:0 -16px;padding:0 16px;}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/* Catalogo MRO — extraido de "Control de Inventario - MRO 2022-24" (Google Sheets, fmorales@rubber-mexico.com)
+   Generado 2026-09-08. Lectura parcial: el sheet original es mas grande de lo que Drive permite exportar. */
+const CLASIF=[{"i": "EXX", "f": "Empaque", "c": "X-Otros", "s": "X-Otros"}, {"i": "IEX", "f": "Informatica", "c": "Equipo de computo", "s": "X-Otros"}, {"i": "ILX", "f": "Informatica", "c": "Laptops", "s": "X-Otros"}, {"i": "IXX", "f": "Informatica", "c": "X-Otros", "s": "X-Otros"}, {"i": "LXX", "f": "Limpieza", "c": "X-Otros", "s": "X-Otros"}, {"i": "MEX", "f": "Mobiliario", "c": "Escritorios", "s": "X-Otros"}, {"i": "MGX", "f": "Mobiliario", "c": "Gabinetes", "s": "X-Otros"}, {"i": "MMX", "f": "Mobiliario", "c": "Mesas", "s": "X-Otros"}, {"i": "MRX", "f": "Mobiliario", "c": "Repisas", "s": "X-Otros"}, {"i": "MSX", "f": "Mobiliario", "c": "Sillas", "s": "X-Otros"}, {"i": "MXX", "f": "Mobiliario", "c": "X-Otros", "s": "X-Otros"}, {"i": "PXX", "f": "Papeleria", "c": "X-Otros", "s": "X-Otros"}, {"i": "SBX", "f": "SHMA", "c": "Botiquin", "s": "X-Otros"}, {"i": "SEX", "f": "SHMA", "c": "EPP", "s": "X-Otros"}, {"i": "SMX", "f": "SHMA", "c": "Medio Ambiente", "s": "X-Otros"}, {"i": "SSX", "f": "SHMA", "c": "Señalizacion", "s": "X-Otros"}, {"i": "SXX", "f": "SHMA", "c": "X-Otros", "s": "X-Otros"}, {"i": "TCA", "f": "Talleres", "c": "Consumibles", "s": "Abrasivos"}, {"i": "TCC", "f": "Talleres", "c": "Consumibles", "s": "CNC"}, {"i": "TCG", "f": "Talleres", "c": "Consumibles", "s": "Gases"}, {"i": "TCL", "f": "Talleres", "c": "Consumibles", "s": "Lubricantes"}, {"i": "TCP", "f": "Talleres", "c": "Consumibles", "s": "Pegamentos"}, {"i": "TCQ", "f": "Talleres", "c": "Consumibles", "s": "Quimicos"}, {"i": "TCS", "f": "Talleres", "c": "Consumibles", "s": "Soldaduras & Plasmas"}, {"i": "TCX", "f": "Talleres", "c": "Consumibles", "s": "X-Otros"}, {"i": "TEP", "f": "Talleres", "c": "Estructuras", "s": "Placas"}, {"i": "TET", "f": "Talleres", "c": "Estructuras", "s": "Tubos"}, {"i": "TEU", "f": "Talleres", "c": "Estructuras", "s": "Uniones"}, {"i": "TEX", "f": "Talleres", "c": "Estructuras", "s": "X-Otros"}, {"i": "THC", "f": "Talleres", "c": "Herramientas", "s": "Corte"}, {"i": "THE", "f": "Talleres", "c": "Herramientas", "s": "Electricas"}, {"i": "THL", "f": "Talleres", "c": "Herramientas", "s": "Limpieza"}, {"i": "THM", "f": "Talleres", "c": "Herramientas", "s": "Medicion"}, {"i": "THN", "f": "Talleres", "c": "Herramientas", "s": "Neumaticas"}, {"i": "THX", "f": "Talleres", "c": "Herramientas", "s": "X-Otros"}, {"i": "TMC", "f": "Talleres", "c": "Maquinas", "s": "CNC"}, {"i": "TME", "f": "Talleres", "c": "Maquinas", "s": "Electromecanicas"}, {"i": "TMM", "f": "Talleres", "c": "Maquinas", "s": "Mecanicas"}, {"i": "TMX", "f": "Talleres", "c": "Maquinas", "s": "X-Otros"}, {"i": "TRC", "f": "Talleres", "c": "Refacciones", "s": "CNC"}, {"i": "TRE", "f": "Talleres", "c": "Refacciones", "s": "Electricos"}, {"i": "TRM", "f": "Talleres", "c": "Refacciones", "s": "Mecanicos"}, {"i": "TRS", "f": "Talleres", "c": "Refacciones", "s": "Soldaduras & Plasma"}, {"i": "TRX", "f": "Talleres", "c": "Refacciones", "s": "X-Otros"}, {"i": "TTA", "f": "Talleres", "c": "Tornilleria", "s": "Arandelas"}, {"i": "TTN", "f": "Talleres", "c": "Tornilleria", "s": "Nuts"}, {"i": "TTT", "f": "Talleres", "c": "Tornilleria", "s": "Tornillos"}, {"i": "TTX", "f": "Talleres", "c": "Tornilleria", "s": "X-Otros"}, {"i": "TXX", "f": "Talleres", "c": "X-Otros", "s": "X-Otros"}, {"i": "XXX", "f": "X-otros", "c": "X-Otros", "s": "X-Otros"}];
+const SEED_ITEMS=[{"c": "06030EP3OFP364TS-W22", "d": "WEG GENERAL PURPOSE MOTOR 60 HP 06030EP3OFP364TS-W22", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Grainger Mexico", "pp": "", "ss": 1, "mo": 2, "mu": 1}, {"c": "1986K548", "d": "RESORTE 548", "u": "PAQ", "k": "", "s": 0, "mn": 10, "rp": 10, "lt": 1.0, "cm": 0, "l": "MRO-02-C1", "p": "", "pp": "", "ss": 6, "mo": 6, "mu": 0}, {"c": "25V21A-1A20282", "d": "BOMBA HYDRAULICA DE PALETAS VICKERS 25V21A-1A20282", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Radwell International", "pp": "", "ss": 1, "mo": 1, "mu": 1}, {"c": "299-017-04", "d": "AIR FILTER CONAIR 299-017-04", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Radwell International", "pp": "", "ss": 2, "mo": 2, "mu": 1}, {"c": "34K73W312", "d": "MOTOR RADWELL 34K73W312", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Radwell International", "pp": "", "ss": 1, "mo": 1, "mu": 1}, {"c": "365TTFCD6036", "d": "Marathon Globetrotter General Purpose Motor 75 HP 365TTFCD6036", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Electric motor wholesale", "pp": "", "ss": 1, "mo": 1, "mu": 1}, {"c": "4519 02 110V", "d": "5 ways solenoid valve with protection by encapsulation coil 4519 02 110V", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Radwell International", "pp": "", "ss": 2, "mo": 2, "mu": 1}, {"c": "4535V42A30-1AA22R", "d": "BOMBA DE PALETAS VICKERS 4535V42A30-1AA22R", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 1, "mo": 1, "mu": 1}, {"c": "4V330C10C", "d": "Valvula de aire solenoide AIRTAC VALVE", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Radwell International", "pp": "", "ss": 4, "mo": 4, "mu": 1}, {"c": "5027 06 49", "d": "GENEBRE VALVULA ESFERA C/ ACTUADOR GN-17/S4 5027 06 49", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Distribuidora de Componentes para Automatizacion (DICOA)", "pp": "", "ss": 2, "mo": 2, "mu": 1}, {"c": "5VX710", "d": "DAYTON Cogged V-Belt: 5VX710, 71 in Outside Lg, 5/8 in Top Wd, 17/32 in Thick, Polyester 5VX710", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Grainger Mexico", "pp": "", "ss": 10, "mo": 11, "mu": 1}, {"c": "627", "d": "REGULADOR FISHER 15-40 PSI de 1/2''", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Moragas", "pp": "", "ss": 1, "mo": 1, "mu": 1}, {"c": "70991732", "d": "UNIDAD DE FILTRO Y REGULADOR MS6-LFR-1/2-D7-ERM-AS 70991732", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 1, "mo": 5, "mu": 1}, {"c": "70991757", "d": "FILTRO MICRÓNICO FESTO MS6-LFM-½-B-R-M 70991757", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 3, "mo": 4, "mu": 1}, {"c": "70991761", "d": "MÓDULO DE DERIVACION FESTO MS6-FRM-1/2 70991761", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Radwell International", "pp": "", "ss": 0, "mo": 5, "mu": 0}, {"c": "70992214", "d": "Válvula de apertura Festo MS6-EE-1/2-10V24-S 70992214", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Radwell International", "pp": "", "ss": 1, "mo": 5, "mu": 1}, {"c": "71042097", "d": "ELECTROVÁLVULA FESTO MHE2-MS1H-3/2O-M7 71042097", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Radwell International", "pp": "", "ss": 2, "mo": 4, "mu": 1}, {"c": "71217860", "d": "VALVULA NEUMATIC FESTO VUWS-L30-M32C-M-G38", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Radwell International", "pp": "", "ss": 1, "mo": 5, "mu": 1}, {"c": "9657K422", "d": "RESORTE 422", "u": "PAQ", "k": "", "s": 5, "mn": 10, "rp": 10, "lt": 1.0, "cm": 0, "l": "MRO-02-C1", "p": "", "pp": "", "ss": 22, "mo": 22, "mu": 0}, {"c": "9657K433", "d": "RESORTE 433", "u": "PAQ", "k": "", "s": 13, "mn": 10, "rp": 10, "lt": 1.0, "cm": 0, "l": "MRO-02-C1", "p": "", "pp": "", "ss": 108, "mo": 108, "mu": 0}, {"c": "9657K517", "d": "RESORTE 517", "u": "PAQ", "k": "", "s": 8, "mn": 10, "rp": 10, "lt": 1.0, "cm": 0, "l": "MRO-02-C1", "p": "", "pp": "", "ss": 40, "mo": 40, "mu": 0}, {"c": "A066081-CX5", "d": "AIR FILTER CONAIR 299-017-05", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Conair", "pp": "", "ss": 2, "mo": 2, "mu": 1}, {"c": "A7513A", "d": "REGO A7513A VALVULA GLOBO 2''", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Radwell International", "pp": "", "ss": 1, "mo": 1, "mu": 1}, {"c": "AE1049-00", "d": "TAPE TRANSPARENTE 3'' X 1000 yardas (Rollo Grande para Maquina Indusirial)", "u": "CAJA", "k": "", "s": 325, "mn": 6, "rp": 6, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE1082-01", "d": "PELICULA TERMOENCONGIBLE TUBULAR 24'' X 60C", "u": "PZA", "k": "", "s": 58, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE1083-00", "d": "PELICULA TERMOENCONGIBLE TUBULAR 18'' X 75C", "u": "PZA", "k": "", "s": 41, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE1093-01", "d": "ETIQUETA BLANCA Termica 1.5 X 1 core 1''", "u": "PZA", "k": "", "s": 67, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE1093-02", "d": "ETIQUETA BLANCA Termica1.5 X 1 core 3''", "u": "PZA", "k": "", "s": 9, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE1116-00", "d": "PAPEL KRAFT DOBLE PLIEGO 29", "u": "PZA", "k": "", "s": 308, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE2051-00", "d": "TWIST TIES 8'' (DESCONTINUADO EN MRO - TRASPASO A ALMACEN MP", "u": "CAJA", "k": "", "s": 29, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "ALMACEN MP - NAVE 2", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE2058-00", "d": "FLEJE PARA MAQUINA 20'' X 5000´ CAL:80", "u": "PZA", "k": "", "s": 20, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE4204-01", "d": "TAPE TRANSPARENTE 3'' X 110 yardas (Rollo para Tapera de uso rudo)", "u": "PZA", "k": "", "s": 187, "mn": 240, "rp": 240, "lt": 1.0, "cm": 9.0, "l": "", "p": "", "pp": "TAPE-3X110", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE4208-00", "d": "48 X 40 CARDBOARD 275 (SEPARADORES)", "u": "PZA", "k": "", "s": 2476, "mn": 0, "rp": 0, "lt": 0.5, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE4210-01", "d": "ESQUINEROS", "u": "PZA", "k": "", "s": 11373, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "ESQ-00", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE4244-01", "d": "PELICULA TERMOENCONGIBLE TUBULAR 16'' (S-15285)", "u": "ROLLO", "k": "", "s": 2, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE4245-01", "d": "PELICULA TERMOENCONGIBLE TUBULAR 12'' (S-15284)", "u": "ROLLO", "k": "", "s": 3, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE4247-00", "d": "ROLLO DE BOLSA GRANDE", "u": "PZA", "k": "", "s": 4, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE4256-00", "d": "AIRPLUS 16'' x 1500 (BURBUJA CHICA)", "u": "ROLLO", "k": "", "s": 30, "mn": 16, "rp": 16, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE4278-00", "d": "GRAPAS 5/8", "u": "CAJA", "k": "", "s": 4, "mn": 7, "rp": 7, "lt": 1.0, "cm": 0, "l": "MRO-02-C2", "p": "", "pp": "GRAP-5/8", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE4357-00", "d": "PELICULA TERMOENCONGIBLE DE POLIOLEFINA C-75, 30'' X 3500´", "u": "ROLLO", "k": "", "s": 2, "mn": 2, "rp": 2, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AE4364-00", "d": "ETIQUETA TERMICA ZEBRA Z-PERFORM - 4'' x 6''", "u": "PZA", "k": "", "s": 0, "mn": 10, "rp": 10, "lt": 1.0, "cm": 0, "l": "ALMACEN MP", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AF1010-01", "d": "MOLD REALEASE (GHS )", "u": "PZA", "k": "", "s": 5, "mn": 5, "rp": 5, "lt": 1.0, "cm": 0, "l": "RACK #8", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AF1011-01", "d": "MOLD RELEASE MAVCOAT TPC", "u": "TIBOR", "k": "", "s": 1, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "JAULA QUIM. - NAVE 1", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AF1044-00", "d": "CATALIZADOR MEZLADO PLATINIUM", "u": "CUB", "k": "", "s": 45, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AF1049-02", "d": "MOLD REALEASE MAVCOAT", "u": "PZA", "k": "", "s": 3, "mn": 5, "rp": 5, "lt": 1.0, "cm": 0, "l": "RACK #8", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AF1081-00", "d": "PVA Film (MNL M1030 3 MIL 54 PVA Film 100#/Rl 373 Yd/Rl 137400", "u": "ROLLO", "k": "", "s": -687, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AF1082-00", "d": "2.0 Mil Mylar (1'')", "u": "PZA", "k": "", "s": 20, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AF1085-00", "d": "1.0 Mil Mylar (1.25'')", "u": "PZA", "k": "", "s": -103, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AI1308-00", "d": "TIJERA DE AVIACION CORTE RECTO", "u": "PZA", "k": "", "s": 17, "mn": 5, "rp": 5, "lt": 1.0, "cm": 0, "l": "MRO-02-A1", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AI1445-00", "d": "MR 5414 LOCTITE PEGAMENTO DE CONTACTO NEGRO", "u": "PZA", "k": "", "s": 7, "mn": 25, "rp": 25, "lt": 1.0, "cm": 0, "l": "MRO-02-A3", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AI1933-01", "d": "Polish Mega Shine", "u": "PZA", "k": "", "s": 3, "mn": 5, "rp": 5, "lt": 1.0, "cm": 0, "l": "RACK #8", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AI2111-00", "d": "TORNILLO BUTTON M8 X 22", "u": "PZA", "k": "", "s": 0, "mn": 100, "rp": 100, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AI3526-00", "d": "CINTA KAPTON - 3/4 X 36YDS", "u": "PZA", "k": "", "s": 0, "mn": 5, "rp": 5, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AI3540-00", "d": "BOLSAS VERDES 250mm (DESCONTINUADO - NO SOLICITAR)", "u": "PZA", "k": "", "s": 11, "mn": 3, "rp": 3, "lt": 1.0, "cm": 0, "l": "ALMACEN MP - NAVE 2", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AM0147-00", "d": "ETIQUETA BLANCA 2 X 8", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AM0238-00", "d": "ETIQUETA VERDE ''SAFETY SHEKLIST''", "u": "PZA", "k": "", "s": 1500, "mn": 200, "rp": 200, "lt": 1.0, "cm": 0, "l": "MRO-01-A1", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AM0996-00", "d": "ETIQUETA ''DAYSTAR'' COLOR MORADO", "u": "ROLLO", "k": "", "s": 14, "mn": 5, "rp": 5, "lt": 1.0, "cm": 0, "l": "MRO-01-C3", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0003-01", "d": "NAVAJA P/CAJA 3/16", "u": "PZA", "k": "", "s": 198, "mn": 50, "rp": 50, "lt": 1.0, "cm": 8.0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0004-01", "d": "NAVAJA P/TUBO 1/4 CN", "u": "PZA", "k": "", "s": 183, "mn": 50, "rp": 50, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0009-00", "d": "MANGUERA 0.030 1/2 (ROTOLINE)", "u": "MTS", "k": "", "s": 64, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0010-01", "d": "MANGUERA 0.030 3/4 (ROTOLINE) 5033K39 POPOTE TEFLON PTFE", "u": "MTS", "k": "", "s": 257, "mn": 300, "rp": 300, "lt": 2.0, "cm": 1.0, "l": "RACK #9", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0012-00", "d": "INSERTO PLATEADO 1/4-20", "u": "PZA", "k": "", "s": 2900, "mn": 4500, "rp": 4500, "lt": 1.0, "cm": 900.0, "l": "MRO-02-D4", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0013-00", "d": "INSERTO ALUMINUM INSERTS- 8-THREAD 1/4-20", "u": "PZA", "k": "", "s": 1645, "mn": 300, "rp": 300, "lt": 1.0, "cm": 0, "l": "MRO-02-D4", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0014-00", "d": "TUBO BLANCO PTFE TEFLON, 54 FEET 1” OD x 7/8” ID 8547K29", "u": "PZA", "k": "", "s": 139, "mn": 50, "rp": 50, "lt": 2.0, "cm": 0, "l": "EXT MRO", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0015-00", "d": "INSERTO PLATEADO 10-32", "u": "PZA", "k": "", "s": 8792, "mn": 1000, "rp": 1000, "lt": 1.0, "cm": 303.0, "l": "MRO-02-D4", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0017-00", "d": "INSERTO PLATEADO 8-32''", "u": "PZA", "k": "", "s": 110200, "mn": 10000, "rp": 10000, "lt": 1.0, "cm": 433.0, "l": "MRO-02-D4", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0018-00", "d": "INSERTO DORADO M4", "u": "PZA", "k": "", "s": 9300, "mn": 3500, "rp": 3500, "lt": 1.0, "cm": 167.0, "l": "MRO-02-E4", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0019-00", "d": "INSERTO PLATEADO 5/16-18''", "u": "PZA", "k": "", "s": -2700, "mn": 1500, "rp": 1500, "lt": 1.0, "cm": 317.0, "l": "MRO-02-E4", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0026-00", "d": "INSERTO PLATEADO 10-24''", "u": "PZA", "k": "", "s": 8298, "mn": 3500, "rp": 3500, "lt": 1.0, "cm": 400.0, "l": "MRO-02-E4", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0027-00", "d": "RESORTE 8-32", "u": "PAQ", "k": "", "s": 87, "mn": 0, "rp": 4, "lt": 1.0, "cm": 2.0, "l": "MRO-02-C1", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0028-01", "d": "RESORTE 10-24", "u": "PAQ", "k": "", "s": 11, "mn": 25, "rp": 25, "lt": 1.0, "cm": 1.0, "l": "MRO-02-C1", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0029-00", "d": "RESORTE 5/16-18", "u": "PAQ", "k": "", "s": 11, "mn": 0, "rp": 2, "lt": 1.0, "cm": 1.0, "l": "MRO-02-C1", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0031-01", "d": "RESORTE 1/4-20", "u": "PAQ", "k": "", "s": 17, "mn": 0, "rp": 4, "lt": 1.0, "cm": 2.0, "l": "MRO-02-C1", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0032-00", "d": "RESORTE M4", "u": "PAQ", "k": "", "s": 125, "mn": 0, "rp": 2, "lt": 1.0, "cm": 1.0, "l": "MRO-02-C1", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0039-01", "d": "SURFACE", "u": "PZA", "k": "", "s": 0, "mn": 480, "rp": 480, "lt": 1.0, "cm": 1.0, "l": "RACK #9", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0041-00", "d": "PATCH`N GO", "u": "PZA", "k": "", "s": 1, "mn": 0, "rp": 2, "lt": 1.0, "cm": 1.0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0045-00", "d": "REBABEADOR NOGA (LAPIZ AZUL CHICO)", "u": "PZA", "k": "", "s": 268, "mn": 0, "rp": 4, "lt": 1.0, "cm": 2.0, "l": "MRO-02-A1", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0047-00", "d": "TORNILLO SOCKET NC8 10-24 X 2", "u": "PZA", "k": "", "s": 266, "mn": 100, "rp": 100, "lt": 1.0, "cm": 0, "l": "MRO-02-D2", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0064-00", "d": "FLASH TRIMMER 1/2 (PELAPAPAS)", "u": "PZA", "k": "", "s": 334, "mn": 0, "rp": 16, "lt": 1.0, "cm": 8.0, "l": "MRO-02-A1", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0067-00", "d": "MASKIN TAPE 1'' X 36 YDS POLYMERO DOBLE CARA", "u": "PZA", "k": "", "s": 6, "mn": 36, "rp": 36, "lt": 1.0, "cm": 0, "l": "MRO-01-A2", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0074-00", "d": "SQUARE-HEAD STEEL DOWEL (STANDARD) GUIAS PARA SOLDADURA", "u": "CAJA", "k": "", "s": 1, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0078-00", "d": "INSERTO PLATEADO 1/4'' NPT", "u": "PZA", "k": "", "s": 1450, "mn": 1500, "rp": 1500, "lt": 1.0, "cm": 83.0, "l": "MRO-02-E4", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0088-00", "d": "INSERTO PLATEADO 1/8'' NPT", "u": "PZA", "k": "", "s": 1886, "mn": 250, "rp": 250, "lt": 1.0, "cm": 0, "l": "MRO-02-F4", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0091-00", "d": "INSERTO PLATEADO 10-24'' X 15", "u": "PZA", "k": "", "s": 2837, "mn": 150, "rp": 150, "lt": 1.0, "cm": 67.0, "l": "MRO-02-F4", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0092-00", "d": "GRASA ALMASOL", "u": "CUB", "k": "", "s": 6, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0093-00", "d": "INSERTO PLATEADO 3/8'' NPT", "u": "PZA", "k": "", "s": 2200, "mn": 0, "rp": 200, "lt": 1.0, "cm": 100.0, "l": "MRO-02-F4", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0096-00", "d": "CUTTER NARANJA PARA REPUESTO DE NAVAJA DE 9mm", "u": "PZA", "k": "", "s": 33, "mn": 25, "rp": 25, "lt": 1.0, "cm": 7.0, "l": "MRO-02-A1", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0098-00", "d": "INSERTO DORADO M6", "u": "PZA", "k": "", "s": -1973, "mn": 3500, "rp": 3500, "lt": 1.0, "cm": 317.0, "l": "MRO-02-F4", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0100-00", "d": "NAVAJA P/ROUTER 1/4", "u": "PZA", "k": "", "s": -2, "mn": 50, "rp": 50, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0110-01", "d": "MOLD RELEASE (ROTOMOLDEO)", "u": "TOTEM", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "PISO - AREA ROTOLINE", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0111-01", "d": "ROUTER NEUMATICO 12L1001-36RT", "u": "PZA", "k": "", "s": 4, "mn": 2, "rp": 2, "lt": 1.0, "cm": 0, "l": "MRO-02-C2", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0115-00", "d": "ISOLACION ISULATION (FIBRA DE AISLAMIENTO)", "u": "PZA", "k": "", "s": 0, "mn": 4, "rp": 4, "lt": 1.0, "cm": 1.0, "l": "RACK #9", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0118-00", "d": "TORNILLO FLANGE HEXAGONAL 1/2-13 X 3", "u": "PZA", "k": "", "s": 0, "mn": 100, "rp": 100, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0121-00", "d": "TORNILLO FLANGE HEXAGONAL 1/2-13 X 3-1/2", "u": "PZA", "k": "", "s": 10, "mn": 100, "rp": 100, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0123-00", "d": "TUERCA 1/2 -13 NC8", "u": "PZA", "k": "", "s": 0, "mn": 500, "rp": 666, "lt": 1.0, "cm": 333.0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0141-00", "d": "RONDANA 1/2 OXID ZINC", "u": "PZA", "k": "", "s": 0, "mn": 150, "rp": 150, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0148-00", "d": "PISTOLA DE AIRE BASICA DE PLASTICO", "u": "PZA", "k": "", "s": 752, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "MRO-02-B1", "p": "Amazon Mx", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0152-01", "d": "LUBRICANTE KRYTOX", "u": "PZA", "k": "", "s": 7, "mn": 3, "rp": 3, "lt": 1.0, "cm": 0, "l": "MRO-02-A3", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0164-00", "d": "GUIA PARA ROUTER 1/4'' (LARGA)", "u": "PZA", "k": "", "s": 7, "mn": 0, "rp": 2, "lt": 1, "cm": 1.0, "l": "MRO-02-C3", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0165-00", "d": "GUIA PARA ROUTER 1/4'' (CORTA)", "u": "PZA", "k": "", "s": 6, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "MRO-02-C3", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0172-01", "d": "McLube, McLube 1711LRTU, 5 gallon pail", "u": "PZA", "k": "", "s": -1000, "mn": 5, "rp": 5, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0197-00", "d": "INSERTO DE 1/4'' NPT PARA TANQUES", "u": "PZA", "k": "", "s": -3, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "ALMACEN MP - NAVE 2", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR0201-02", "d": "WAVY BLADE 3/4 X 0.020 (MAQ. DE FILTROS)", "u": "PZA", "k": "", "s": 102, "mn": 30, "rp": 30, "lt": 1.0, "cm": 11.0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR1000-01", "d": "INSERTO DE 1/2'' NPT PARA TANQUES", "u": "PZA", "k": "", "s": -233, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR1133-00", "d": "POLISH METAL CNC", "u": "PZA", "k": "", "s": -5, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "MRO-02-A3", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR1164-00", "d": "TIJERA NARANJA CURVA 4''", "u": "PZA", "k": "", "s": 106, "mn": 15, "rp": 15, "lt": 1.0, "cm": 3.0, "l": "MRO-02-A1", "p": "", "pp": "", "ss": 15, "mo": 0, "mu": 0}, {"c": "AR1172-00", "d": "INSERTO DORADO 10-32", "u": "PZA", "k": "", "s": 6961, "mn": 500, "rp": 500, "lt": 1.0, "cm": 0, "l": "MRO-02-F3", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR1174-00", "d": "INSERTO BRONCE M8", "u": "PZA", "k": "", "s": 1228, "mn": 500, "rp": 500, "lt": 1.0, "cm": 0, "l": "MRO-02-F3", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR1178-00", "d": "Mclube 1804H, Mandrel Mold Release", "u": "PZA", "k": "", "s": 13, "mn": 5, "rp": 5, "lt": 1.0, "cm": 0, "l": "RACK #8", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR1183-00", "d": "INSERTO DORADO 1/4-20", "u": "PZA", "k": "", "s": 850, "mn": 1500, "rp": 1500, "lt": 1.0, "cm": 50.0, "l": "MRO-02-F4", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR1184-00", "d": "INSERTO DORADO 10-32", "u": "PZA", "k": "", "s": -3400, "mn": 7500, "rp": 7500, "lt": 1.0, "cm": 767.0, "l": "MRO-02-F4", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR1186-00", "d": "INSERTO DORADO 8-32", "u": "PZA", "k": "", "s": 2615, "mn": 3500, "rp": 3500, "lt": 1.0, "cm": 0, "l": "MRO-02-F3", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR1201-00", "d": "INSERTO ALUMINIO M10", "u": "PZA", "k": "", "s": 713, "mn": 100, "rp": 166, "lt": 1.0, "cm": 83.0, "l": "MRO-02-F4", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR1204-00", "d": "INSERTO BRONCE 1/2-13", "u": "PZA", "k": "", "s": 400, "mn": 150, "rp": 150, "lt": 1.0, "cm": 0, "l": "MRO-02-F3", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR2050-00", "d": "MOLD RELEASE FOR ALUMINIUM ''STONER E236''", "u": "PZA", "k": "", "s": 0, "mn": 12, "rp": 12, "lt": 1.0, "cm": 4.0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AR3002-00", "d": "HOJA DE CORTE DE COBALTO HHIP DE 3/32 X 1/2 X 4-1/2'' (MAQ PROCESO TRIMMING)", "u": "PZA", "k": "", "s": 122, "mn": 10, "rp": 10, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AW1000-00", "d": "GREEN MIXERS (PIPETAS)", "u": "PZA", "k": "", "s": 1902, "mn": 100, "rp": 100, "lt": 6.0, "cm": 10.0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "AW1001-00", "d": "YELLOW MIXER (PIPETAS)", "u": "PZA", "k": "", "s": 1071, "mn": 100, "rp": 100, "lt": 6.0, "cm": 17.0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "B84G-4AK-AP3-RMN", "d": "NORGREN 1/2'' PTF FILTRO REGULADOR , 40 µm, 0.3-10 bar B84G-4AK-AP3-RMN", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "One Hydraulics", "pp": "", "ss": 1, "mo": 2, "mu": 1}, {"c": "CF8M - 3in", "d": "STAINLESS STEEL SANITARY BALL VALVE 3'', JIS/ANSI 150 FLANGED CF8M - 3''", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Ebay, Inc.", "pp": "", "ss": 1, "mo": 1, "mu": 1}, {"c": "CO2T", "d": "CO2 CILINDRO DE 22KG", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Praxair Mexico S de RL de CV", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "DSBC-40-250-PPSA-N3", "d": "FESTO ISO CYLINDER SERIES DSBC 40 MM BORE DSBC-40-250-PPSA-N3", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Radwell International", "pp": "", "ss": 4, "mo": 4, "mu": 1}, {"c": "EXX-0001", "d": "DESPACHADOR DE CINTA ADHESIVA 3'' (PISTOLA)", "u": "PZA", "k": "EXX", "s": 2, "mn": 1, "rp": 1, "lt": 1.0, "cm": 4.0, "l": "MRO-01-B1", "p": "Uline Mexico", "pp": "DES-3P", "ss": 13, "mo": 13, "mu": 0}, {"c": "EXX-0002", "d": "NAVAJA P/DESPACHADOR DE CINTA ADHESIVA 3'' (PISTOLA)", "u": "PZA", "k": "EXX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Uline Mexico", "pp": "DESNAV-N3P", "ss": 0, "mo": 0, "mu": 0}, {"c": "EXX-0003", "d": "ETIQUETA. ''# DE PARTE''", "u": "PZA", "k": "EXX", "s": 0, "mn": 5, "rp": 5, "lt": 1.0, "cm": 3.0, "l": "MRO-01-B3", "p": "", "pp": "ETIQ-#P", "ss": 15, "mo": 15, "mu": 0}, {"c": "EXX-0004", "d": "ETIQUETA ENVIO ''FONTANA''", "u": "PZA", "k": "EXX", "s": 11, "mn": 5, "rp": 5, "lt": 1.0, "cm": 1.0, "l": "MRO-01-A3", "p": "", "pp": "ETIQ-F", "ss": 3, "mo": 3, "mu": 0}, {"c": "EXX-0005", "d": "ETIQUETA ENVIO ''ONNI''", "u": "PZA", "k": "EXX", "s": 6, "mn": 5, "rp": 5, "lt": 1.0, "cm": 2.0, "l": "MRO-01-A3", "p": "", "pp": "ETIQ-O", "ss": 3, "mo": 3, "mu": 0}, {"c": "EXX-0006", "d": "ETIQUETA ''OK TO SHIP''", "u": "PZA", "k": "EXX", "s": 20, "mn": 5, "rp": 5, "lt": 1.0, "cm": 3.0, "l": "MRO-01-A3", "p": "", "pp": "ETIQ-OK", "ss": 5, "mo": 5, "mu": 0}, {"c": "EXX-0007", "d": "ETIQUETA ''SCRAP''", "u": "PZA", "k": "EXX", "s": 32, "mn": 5, "rp": 5, "lt": 1.0, "cm": 1.0, "l": "MRO-01-B3", "p": "", "pp": "ETIQ-SCR", "ss": 2, "mo": 2, "mu": 0}, {"c": "EXX-0008", "d": "ETIQUETA AMARILLA 1''", "u": "PZA", "k": "EXX", "s": 18, "mn": 15, "rp": 15, "lt": 1.0, "cm": 2.0, "l": "MRO-01-B3", "p": "", "pp": "ETIQ-AMA1", "ss": 56, "mo": 56, "mu": 0}, {"c": "EXX-0009", "d": "ETIQUETA AMARILLA COLGANTE DE CARTON (CHICA)", "u": "PAQ", "k": "EXX", "s": 592, "mn": 2, "rp": 66, "lt": 1.0, "cm": 33.0, "l": "MRO-01-B1", "p": "", "pp": "ETIQ-AMACOL", "ss": 7341, "mo": 7341, "mu": 0}, {"c": "EXX-0010", "d": "ETIQUETA VERDE COLGANTE DE CARTON", "u": "PZA", "k": "EXX", "s": 1288, "mn": 100, "rp": 100, "lt": 1.0, "cm": 334.0, "l": "MRO-01-A1", "p": "", "pp": "ETIQ-VER", "ss": 254, "mo": 254, "mu": 0}, {"c": "EXX-0011", "d": "ETIQUETA ROJA COLGANTE DE CARTON (CHICA)", "u": "PZA", "k": "EXX", "s": 707, "mn": 50, "rp": 50, "lt": 1.0, "cm": 0, "l": "MRO-01-A1", "p": "", "pp": "ETIQ-RJA", "ss": 82, "mo": 82, "mu": 0}, {"c": "EXX-0012", "d": "ETIQUETA DE ADVERTENCIA", "u": "PAQ", "k": "EXX", "s": 3, "mn": 2, "rp": 2, "lt": 1.0, "cm": 0, "l": "MRO-01-A1", "p": "", "pp": "ETIQ-ADV", "ss": 935, "mo": 935, "mu": 0}, {"c": "EXX-0016", "d": "FLEJE 18''", "u": "PZA", "k": "EXX", "s": 437, "mn": 79, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "FLEJ-18", "ss": 79, "mo": 79, "mu": 0}, {"c": "EXX-0017", "d": "FLEJE 3'' (EMPLAYE CHICO)", "u": "PZA", "k": "EXX", "s": 4, "mn": 12, "rp": 12, "lt": 1.0, "cm": 31.0, "l": "MRO-01-B3", "p": "Mercado Libre MX", "pp": "FLEJ-3", "ss": 34, "mo": 34, "mu": 0}, {"c": "EXX-0018", "d": "MANERAL PARA FLEJE", "u": "PZA", "k": "EXX", "s": -11, "mn": 10, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "MANER-F", "ss": 10, "mo": 10, "mu": 0}, {"c": "EXX-0020", "d": "GRAPAS 3/4", "u": "CAJA", "k": "EXX", "s": 0, "mn": 3, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "GRAP-3/4", "ss": 3, "mo": 3, "mu": 0}, {"c": "EXX-0021", "d": "BOLSA TERMICA NYLON", "u": "YDS", "k": "EXX", "s": 100, "mn": 1913, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "BOLS-TN", "ss": 1913, "mo": 1913, "mu": 0}, {"c": "EXX-0023", "d": "AIR PLUS 27.6'' x 850 (BURBUJA GRANDE)", "u": "PZA", "k": "EXX", "s": 13, "mn": 6, "rp": 0, "lt": 1.0, "cm": 1.0, "l": "", "p": "", "pp": "BURB-GD", "ss": 6, "mo": 6, "mu": 0}, {"c": "EXX-0024", "d": "SOBRES #6 DE POLIOLEFINA CON BURBUJA 12 1/2 X 19''", "u": "PZA", "k": "EXX", "s": 3, "mn": 0, "rp": 0, "lt": 1.0, "cm": 1.0, "l": "", "p": "Uline Mexico", "pp": "SOB-BURB", "ss": 0, "mo": 0, "mu": 0}, {"c": "EXX-0025", "d": "TAPE NEGRO PARA DUCTOS (MARCA GORILLA)", "u": "PZA", "k": "EXX", "s": 5, "mn": 35, "rp": 35, "lt": 1.0, "cm": 30.0, "l": "MRO-01-A2", "p": "Amazon Mx", "pp": "TAPE-GOR", "ss": 28, "mo": 28, "mu": 0}, {"c": "EXX-0027", "d": "TAPE TRANSPARENTE 3 X 1000", "u": "PZA", "k": "EXX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "TAPE-3X1000", "ss": 0, "mo": 0, "mu": 0}, {"c": "EXX-0028", "d": "MASKING TAPE 3/4", "u": "PZA", "k": "EXX", "s": 22, "mn": 20, "rp": 20, "lt": 1.0, "cm": 7.0, "l": "MRO-01-A1", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "MASKTAP-3/4", "ss": 314, "mo": 314, "mu": 0}, {"c": "EXX-0029", "d": "VACIO", "u": "PZA", "k": "EXX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "BOLSA-18", "ss": 0, "mo": 0, "mu": 0}, {"c": "EXX-0030", "d": "VACIO", "u": "PZA", "k": "EXX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "BOLSA-24", "ss": 0, "mo": 0, "mu": 0}, {"c": "EXX-0031", "d": "CANDADO AMARILLO ALTA SEGURIDAD PARA TRAILERS", "u": "CAJA", "k": "EXX", "s": 21, "mn": 2, "rp": 2, "lt": 1.0, "cm": 3.0, "l": "MRO-01-B1", "p": "Mercado Libre MX", "pp": "CAND-A", "ss": 83, "mo": 83, "mu": 0}, {"c": "EXX-0032", "d": "CANDADO ROJO ALTA SEGURIDAD PARA TRAILERS", "u": "PAQ", "k": "EXX", "s": 20, "mn": 2, "rp": 2, "lt": 1.0, "cm": 2.0, "l": "MRO-01-B1", "p": "Uline Mexico", "pp": "CAND-R", "ss": 126, "mo": 126, "mu": 0}, {"c": "EXX-0033", "d": "CARTERA DE HUEVO C/140PZ", "u": "PAQ", "k": "EXX", "s": 1, "mn": 17922, "rp": 0, "lt": 1.0, "cm": 1.0, "l": "", "p": "Mercado Libre MX", "pp": "CART-H", "ss": 17922, "mo": 17922, "mu": 0}, {"c": "EXX-0034", "d": "RIBBON WAX 1 X 4.33 (TONNER GRANDE)", "u": "PZA", "k": "EXX", "s": 13, "mn": 10, "rp": 10, "lt": 1.0, "cm": 8.0, "l": "MRO-01-A3", "p": "", "pp": "TON-1X4.33", "ss": 12, "mo": 12, "mu": 0}, {"c": "EXX-0035", "d": "RIBBON WAX 1 X 3 (TONNER CHICO)", "u": "PZA", "k": "EXX", "s": 45, "mn": 12, "rp": 12, "lt": 1.0, "cm": 18.0, "l": "MRO-01-A3", "p": "", "pp": "TON-1X3", "ss": 21, "mo": 21, "mu": 0}, {"c": "EXX-0036", "d": "TAPE AMARILLO (PARA DELIMITAR AREAS)", "u": "PZA", "k": "EXX", "s": 8, "mn": 19, "rp": 0, "lt": 1.0, "cm": 20.0, "l": "MRO-01-B2", "p": "Mercado Libre MX", "pp": "TAPE-AMA", "ss": 19, "mo": 19, "mu": 0}, {"c": "EXX-0037", "d": "ETIQUETA AMARILLA ''COUNTED''", "u": "PZA", "k": "EXX", "s": 15, "mn": 5, "rp": 0, "lt": 1.0, "cm": 0, "l": "MRO-01-A3", "p": "", "pp": "ETIQ-COUN", "ss": 5, "mo": 5, "mu": 0}, {"c": "EXX-0038", "d": "TAPE AMARILLO CON NEGRO (PARA DELIMITAR AREA)", "u": "PZA", "k": "EXX", "s": 11, "mn": 4, "rp": 0, "lt": 1.0, "cm": 4.0, "l": "MRO-01-B2", "p": "", "pp": "TAPE-AMANEG", "ss": 4, "mo": 4, "mu": 0}, {"c": "EXX-0039", "d": "MASKING TAPE AZUL 1''", "u": "PZA", "k": "EXX", "s": 61, "mn": 59, "rp": 6, "lt": 1.0, "cm": 3.0, "l": "MRO-01-A2", "p": "Amazon Mx", "pp": "MASKTAP-AZ1", "ss": 59, "mo": 59, "mu": 0}, {"c": "EXX-0040", "d": "MASKING TAPE AZUL 2''", "u": "PZA", "k": "EXX", "s": 7, "mn": 105, "rp": 0, "lt": 1.0, "cm": 107.0, "l": "MRO-01-A2", "p": "Amazon Mx", "pp": "MASKTAP-AZ2", "ss": 105, "mo": 105, "mu": 0}, {"c": "EXX-0041", "d": "TAPE CAFE INDUSTRIAL (8 ROLLOS)", "u": "CAJA", "k": "EXX", "s": 27, "mn": 79, "rp": 0, "lt": 1.0, "cm": 6.0, "l": "MRO-01-B3", "p": "", "pp": "TAPE-CAF", "ss": 79, "mo": 79, "mu": 0}, {"c": "EXX-0042", "d": "DESPACHADOR DE CINTA ADHESIVA 3'' (ESTATICO, PARA MESA)", "u": "PZA", "k": "EXX", "s": 14, "mn": 1, "rp": 1, "lt": 1.0, "cm": 1.0, "l": "MRO-01-B1", "p": "Uline Mexico", "pp": "DES-3EST", "ss": 2, "mo": 2, "mu": 0}, {"c": "EXX-0043", "d": "TAPE DOBLE CARA (CINTA DE MONTAJE)", "u": "PZA", "k": "EXX", "s": 22, "mn": 38, "rp": 0, "lt": 1.0, "cm": 25.0, "l": "MRO-01-A2", "p": "", "pp": "TAPE-2CARA", "ss": 38, "mo": 38, "mu": 0}, {"c": "EXX-0044", "d": "TAPE ROJO (PARA DELIMITAR AREAS)", "u": "PZA", "k": "EXX", "s": 8, "mn": 5, "rp": 0, "lt": 1.0, "cm": 5.0, "l": "MRO-01-B2", "p": "", "pp": "TAPE-RJO", "ss": 5, "mo": 5, "mu": 0}, {"c": "EXX-0049", "d": "TAPE VERDE (PARA DELIMITAR AREAS)", "u": "PZA", "k": "EXX", "s": 55, "mn": 4, "rp": 0, "lt": 1.0, "cm": 3.0, "l": "MRO-01-B2", "p": "", "pp": "TAPE-V", "ss": 4, "mo": 4, "mu": 0}, {"c": "EXX-0060", "d": "VACIO", "u": "PZA", "k": "EXX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "EXX-0066", "d": "POST IT MEDIANOS (NAVE 3)", "u": "PZA", "k": "EXX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "POST-IT", "ss": 0, "mo": 0, "mu": 0}, {"c": "EXX-0067", "d": "PELICULA TERMOENCONGIBLE TUBULAR 18'' X 75C", "u": "PZA", "k": "EXX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "PEL-18X75", "ss": 0, "mo": 0, "mu": 0}, {"c": "EXX-0068", "d": "PELICULA TERMOENCONGIBLE TUBULAR 24'' X 60C", "u": "PZA", "k": "EXX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "PEL-24X60", "ss": 0, "mo": 0, "mu": 0}, {"c": "EXX-0069", "d": "FLEJE NEGRO DE PLASTICO 1/2 X 7200 (JUMBO)", "u": "PZA", "k": "EXX", "s": 5, "mn": 1, "rp": 0, "lt": 1.0, "cm": 1.0, "l": "", "p": "Amazon Mx", "pp": "FLEJNEG-1/2X7200", "ss": 1, "mo": 1, "mu": 0}, {"c": "EXX-0070", "d": "GRAPA 1/2 (P/FLEJE MAQUINA)", "u": "CAJA", "k": "EXX", "s": 2, "mn": 0, "rp": 0, "lt": 1.0, "cm": 1.0, "l": "", "p": "Mercado Libre MX", "pp": "GRAP-1/2-MAQ", "ss": 0, "mo": 0, "mu": 0}, {"c": "EXX-0071", "d": "ETIQUETA ''YUMA''", "u": "PZA", "k": "EXX", "s": 999, "mn": 500, "rp": 500, "lt": 1.0, "cm": 167.0, "l": "MRO-01-A1", "p": "", "pp": "", "ss": 567, "mo": 567, "mu": 0}, {"c": "EXX-0072", "d": "EMPLAYE 12'' X 1500´", "u": "CAJA", "k": "EXX", "s": 0, "mn": 0, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "EXX-0073", "d": "ETIQUETA ''HECHO EN MEXICO''''", "u": "PZA", "k": "EXX", "s": 200, "mn": 100, "rp": 100, "lt": 1.0, "cm": 0, "l": "MRO-01-A1", "p": "", "pp": "", "ss": 3, "mo": 3, "mu": 0}, {"c": "EXX-0075", "d": "FLEJE DE ACERO NEGRO DE GRADO ESTANDAR - 1/2'' x 0.20'' x 3087´", "u": "ROLLO", "k": "EXX", "s": 2, "mn": 5, "rp": 1, "lt": 1.0, "cm": 0, "l": "ESTANTE BLANCO", "p": "", "pp": "", "ss": 37044, "mo": 37044, "mu": 0}, {"c": "EXX-0076", "d": "ETIQUETA ROJA GRANDE COLGANTE DE PLASTICO CON ALAMBRE", "u": "PAQ", "k": "EXX", "s": 7, "mn": 1, "rp": 1, "lt": 1.0, "cm": 1.0, "l": "MRO-01-B2", "p": "Amazon Mx", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "EXX-0077", "d": "ETIQUETA VERDES GRANDE COLGANTE DE PLASTICO CON ALAMBRE", "u": "PAQ", "k": "EXX", "s": 1, "mn": 1, "rp": 1, "lt": 1.0, "cm": 0, "l": "MRO-01-B2", "p": "Amazon Mx", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "EXX-0078", "d": "ETIQUETA AMARILLA GRANDE COLGANTE DE PLASTICO CON ALAMBRE", "u": "PAQ", "k": "EXX", "s": 100, "mn": 1, "rp": 1, "lt": 1.0, "cm": 1.0, "l": "MRO-01-B2", "p": "Amazon Mx", "pp": "", "ss": 12, "mo": 12, "mu": 0}, {"c": "EXX-0079", "d": "CINTA AMARILLA DE ''PRECAUCION'' PARA DELIMITAR AREAS", "u": "PZA", "k": "EXX", "s": 4, "mn": 2, "rp": 1, "lt": 1.0, "cm": 2.0, "l": "MRO-01-C3", "p": "Amazon Mx", "pp": "", "ss": 4, "mo": 4, "mu": 0}, {"c": "EXX-0080", "d": "CINTA ADHESIVA PARA BOLSAS, COLOR BLANCO, 5⁄8” X 540’", "u": "ROLLO", "k": "EXX", "s": 15, "mn": 10, "rp": 1, "lt": 1.0, "cm": 0, "l": "MRO-01-C3", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "EXX-0081", "d": "ESPUMA COHESIVA 24” X 250’ (61 CM X 76 M)", "u": "ROLLO", "k": "EXX", "s": 29, "mn": 6, "rp": 1, "lt": 1.0, "cm": 1.0, "l": "RACK #9", "p": "Uline Mexico", "pp": "", "ss": 18, "mo": 18, "mu": 0}, {"c": "EXX-0082", "d": "BURBUJA ECONÓMICA 24'' X 250' (1/2'')", "u": "PZA", "k": "EXX", "s": 0, "mn": 0, "rp": 2, "lt": 0.0, "cm": 1.0, "l": "2", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 11}, {"c": "EXX-0083", "d": "TARIMA 48 X 80", "u": "PZA", "k": "EXX", "s": 1600, "mn": 0, "rp": 1, "lt": 1.0, "cm": 0, "l": "EXT MRO", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "EXX-0085", "d": "TARIMA 48X48", "u": "PZA", "k": "EXX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "FRN100G1S-4U", "d": "VARIABLE FREQUENCY MEGA Drive G1 5,021.75 Series 100 Hp FRN100G1S-4U", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Radwell International", "pp": "", "ss": 1, "mo": 1, "mu": 1}, {"c": "GFR30010-F3-K", "d": "AIR TAC FILTRO REGULADOR GFR30010-F3-K", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Ebay, Inc.", "pp": "", "ss": 5, "mo": 7, "mu": 1}, {"c": "GNP-300-S5", "d": "ACTUADOR SIMPLE EFECTO GENEBRE GNP-300-S5", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Distribuidora de Componentes para Automatizacion (DICOA)", "pp": "", "ss": 1, "mo": 1, "mu": 1}, {"c": "ITV2030-33F3N3", "d": "REGULADOR ELECTRO-NEUMATICO ITV2030-33F3N3", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMC PNEUMATICS.COM", "pp": "", "ss": 2, "mo": 4, "mu": 1}, {"c": "LXX-0001", "d": "FRANELA AMARILLA", "u": "PZA", "k": "LXX", "s": 489, "mn": 180, "rp": 298, "lt": 1.0, "cm": 149.0, "l": "", "p": "COSTCO WHOLESALE MEXICO", "pp": "", "ss": 1831, "mo": 1831, "mu": 0}, {"c": "LXX-0002", "d": "ATOMIZADOR COMPLETO (ENVASE Y GATILLERO)", "u": "PZA", "k": "LXX", "s": 6, "mn": 56, "rp": 2, "lt": 1.0, "cm": 1.0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 56, "mo": 56, "mu": 0}, {"c": "LXX-0003", "d": "REPUESTO DE GATILLERO (ATOMIZADOR)", "u": "PZA", "k": "LXX", "s": 0, "mn": 93, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 93, "mo": 93, "mu": 0}, {"c": "LXX-0004", "d": "TRAPOS CONTENEDOR COLOR", "u": "BOLSA", "k": "LXX", "s": 20, "mn": 2, "rp": 2, "lt": 1.0, "cm": 50.0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "", "ss": 12, "mo": 12, "mu": 1}, {"c": "LXX-0005", "d": "TRAPOS CONTENEDOR BLANCO", "u": "BOLSA", "k": "LXX", "s": 0, "mn": 2, "rp": 2, "lt": 1.0, "cm": 10.0, "l": "", "p": "", "pp": "", "ss": 7, "mo": 7, "mu": 0}, {"c": "LXX-0006", "d": "AIRE COMPRIMDO EN SPRAY (REMOVEDOR DE POLVO)", "u": "PZA", "k": "LXX", "s": 3, "mn": 5, "rp": 5, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 9, "mo": 9, "mu": 0}, {"c": "LXX-0007", "d": "MOZTACEROS 8oz ( TAMAÑO DELGADO- 1/4 DE LITRO)", "u": "PZA", "k": "LXX", "s": 25, "mn": 7, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 7, "mo": 7, "mu": 0}, {"c": "LXX-0008", "d": "ORVUS JABON", "u": "PZA", "k": "LXX", "s": 1, "mn": 2, "rp": 8, "lt": 1.0, "cm": 4.0, "l": "", "p": "", "pp": "", "ss": 4, "mo": 4, "mu": 0}, {"c": "LXX-0009", "d": "TOALLA FACIAL 12 X 12 (DESCONTINUADO)", "u": "PZA", "k": "LXX", "s": -105, "mn": 50, "rp": 50, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 34, "mo": 34, "mu": 0}, {"c": "LXX-0010", "d": "MOZTACEROS 16oz (TAMAÑO MEDIANO - 1/2 LITRO)", "u": "PZA", "k": "LXX", "s": 20, "mn": 15, "rp": 0, "lt": 1.0, "cm": 3.0, "l": "", "p": "Uline Mexico", "pp": "", "ss": 15, "mo": 15, "mu": 0}, {"c": "LXX-0011", "d": "LIMPIADOR DE MANOS ''FAST ORANGE''", "u": "PZA", "k": "LXX", "s": 309, "mn": 2, "rp": 2, "lt": 1.0, "cm": 4.0, "l": "", "p": "Amazon Mx", "pp": "", "ss": 5, "mo": 5, "mu": 0}, {"c": "LXX-0012", "d": "CEPILLOS PARA MAQ. BARREDORA", "u": "PZA", "k": "LXX", "s": 342, "mn": 18, "rp": 18, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 18, "mo": 18, "mu": 0}, {"c": "LXX-0013", "d": "LIMPIADOR PARA PISOS (PARA BARREDORA)", "u": "PZA", "k": "LXX", "s": 10, "mn": 1, "rp": 1, "lt": 1.0, "cm": 1.0, "l": "", "p": "", "pp": "", "ss": 6, "mo": 6, "mu": 0}, {"c": "LXX-0014", "d": "Acido para baños", "u": "PZA", "k": "LXX", "s": 0, "mn": 4, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 4, "mo": 1, "mu": 0}, {"c": "LXX-0015", "d": "Cloro", "u": "PZA", "k": "LXX", "s": 0, "mn": 10, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 10, "mo": 1, "mu": 0}, {"c": "LXX-0016", "d": "Jabón liquido p/trastes 2,6 lts", "u": "PZA", "k": "LXX", "s": 0, "mn": 6, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 6, "mo": 1, "mu": 0}, {"c": "LXX-0017", "d": "Pinol 9 Lts", "u": "PZA", "k": "LXX", "s": 0, "mn": 4, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 4, "mo": 1, "mu": 0}, {"c": "LXX-0018", "d": "Pinol Aromas 9 Lts", "u": "PZA", "k": "LXX", "s": 0, "mn": 4, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 4, "mo": 1, "mu": 0}, {"c": "LXX-0019", "d": "Jabón liquido p/manos", "u": "PZA", "k": "LXX", "s": 0, "mn": 12, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 12, "mo": 1, "mu": 0}, {"c": "LXX-0020", "d": "Gel Alcohol 4 Lts", "u": "PZA", "k": "LXX", "s": 1, "mn": 6, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 6, "mo": 1, "mu": 0}, {"c": "LXX-0021", "d": "Liquido Destapacaños", "u": "PZA", "k": "LXX", "s": 0, "mn": 5, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "El Mayorista Mercado", "pp": "", "ss": 5, "mo": 1, "mu": 0}, {"c": "LXX-0022", "d": "Jabón de polvo Roma 10kg", "u": "PZA", "k": "LXX", "s": 0, "mn": 4, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 4, "mo": 1, "mu": 0}, {"c": "LXX-0030", "d": "Azúcar paq de 10kg", "u": "PZA", "k": "LXX", "s": 0, "mn": 3, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 3, "mo": 1, "mu": 0}, {"c": "LXX-0031", "d": "Botellas de agua 500 ml", "u": "PZA", "k": "LXX", "s": 0, "mn": 3, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "COSTCO WHOLESALE MEXICO", "pp": "", "ss": 3, "mo": 1, "mu": 0}, {"c": "LXX-0032", "d": "Café Folgers", "u": "PZA", "k": "LXX", "s": 0, "mn": 10, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "COSTCO WHOLESALE MEXICO", "pp": "", "ss": 10, "mo": 1, "mu": 0}, {"c": "LXX-0033", "d": "Café Soluble nescafé", "u": "PZA", "k": "LXX", "s": 0, "mn": 6, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "COSTCO WHOLESALE MEXICO", "pp": "", "ss": 6, "mo": 1, "mu": 0}, {"c": "LXX-0034", "d": "Coffe Mate 1,4 kg", "u": "PZA", "k": "LXX", "s": 0, "mn": 12, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "COSTCO WHOLESALE MEXICO", "pp": "", "ss": 12, "mo": 1, "mu": 0}, {"c": "LXX-0035", "d": "Cucharas desechables", "u": "PZA", "k": "LXX", "s": 0, "mn": 4, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "DESEPLAS", "pp": "", "ss": 4, "mo": 1, "mu": 0}, {"c": "LXX-0040", "d": "Cono de papel p/beber agua caja c/5000", "u": "PZA", "k": "LXX", "s": 0, "mn": 8, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "DESEPLAS", "pp": "", "ss": 8, "mo": 1, "mu": 0}, {"c": "LXX-0041", "d": "Cepillos tipo plancha p/tallar", "u": "PZA", "k": "LXX", "s": 0, "mn": 4, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "El Mayorista Mercado", "pp": "", "ss": 4, "mo": 1, "mu": 0}, {"c": "LXX-0042", "d": "Cepillos p/tazas de baño", "u": "PZA", "k": "LXX", "s": 0, "mn": 30, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "El Mayorista Mercado", "pp": "", "ss": 30, "mo": 1, "mu": 0}, {"c": "LXX-0043", "d": "Cepillo grandes p/barrer", "u": "PZA", "k": "LXX", "s": 0, "mn": 4, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 4, "mo": 1, "mu": 0}, {"c": "LXX-0044", "d": "Escobas tipo abanico de plástico", "u": "PZA", "k": "LXX", "s": 0, "mn": 10, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "El Mayorista Mercado", "pp": "", "ss": 10, "mo": 1, "mu": 0}, {"c": "LXX-0045", "d": "Escobas de Mijo", "u": "PZA", "k": "LXX", "s": 0, "mn": 6, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "El Mayorista Mercado", "pp": "", "ss": 6, "mo": 1, "mu": 0}, {"c": "LXX-0046", "d": "Escobas de cotsco tipo cepillo", "u": "PZA", "k": "LXX", "s": 0, "mn": 10, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "COSTCO WHOLESALE MEXICO", "pp": "", "ss": 10, "mo": 1, "mu": 0}, {"c": "LXX-0047", "d": "Trapeadores de Algodon grandes", "u": "PZA", "k": "LXX", "s": 0, "mn": 12, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 12, "mo": 1, "mu": 0}, {"c": "LXX-0048", "d": "Recogedor de Lámina", "u": "PZA", "k": "LXX", "s": 0, "mn": 5, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 5, "mo": 1, "mu": 0}, {"c": "LXX-0049", "d": "Jaladores", "u": "PZA", "k": "LXX", "s": 0, "mn": 4, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 4, "mo": 1, "mu": 0}, {"c": "LXX-0050", "d": "Plumeros chicos", "u": "PZA", "k": "LXX", "s": 0, "mn": 5, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "COSTCO WHOLESALE MEXICO", "pp": "", "ss": 5, "mo": 1, "mu": 0}, {"c": "LXX-0051", "d": "Mopas 24''", "u": "PZA", "k": "LXX", "s": 0, "mn": 3, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 3, "mo": 1, "mu": 0}, {"c": "LXX-0052", "d": "Mopas 36''", "u": "PZA", "k": "LXX", "s": 0, "mn": 3, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 3, "mo": 1, "mu": 0}, {"c": "LXX-0053", "d": "Repuesto de mopar 24''", "u": "PZA", "k": "LXX", "s": 0, "mn": 3, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 3, "mo": 1, "mu": 0}, {"c": "LXX-0054", "d": "Repuesto de Mopa 36''", "u": "PZA", "k": "LXX", "s": 0, "mn": 3, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 3, "mo": 1, "mu": 0}, {"c": "LXX-0060", "d": "Bomba destapacaños", "u": "PZA", "k": "LXX", "s": 0, "mn": 4, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 4, "mo": 1, "mu": 0}, {"c": "LXX-0061", "d": "Dispensador de papel secante", "u": "PZA", "k": "LXX", "s": 0, "mn": 2, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 2, "mo": 1, "mu": 0}, {"c": "LXX-0062", "d": "Dispensador de papel higiénico", "u": "PZA", "k": "LXX", "s": 0, "mn": 2, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 2, "mo": 1, "mu": 0}, {"c": "LXX-0063", "d": "Dispensador de jabón p/ manos", "u": "PZA", "k": "LXX", "s": 0, "mn": 2, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 2, "mo": 1, "mu": 0}, {"c": "LXX-0064", "d": "Dispensador para gel antibacterial", "u": "PZA", "k": "LXX", "s": 0, "mn": 7, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 7, "mo": 1, "mu": 0}, {"c": "LXX-0065", "d": "Fibras verdes muliusos", "u": "PZA", "k": "LXX", "s": 0, "mn": 8, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 8, "mo": 1, "mu": 0}, {"c": "LXX-0066", "d": "Guantes de latex reutilizables (M)", "u": "PZA", "k": "LXX", "s": 0, "mn": 4, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 4, "mo": 1, "mu": 0}, {"c": "LXX-0067", "d": "Tapetes p/mingitorios", "u": "PZA", "k": "LXX", "s": 0, "mn": 12, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 12, "mo": 1, "mu": 0}, {"c": "LXX-0070", "d": "Air wick (Aromatizante Electrico)", "u": "PZA", "k": "LXX", "s": 0, "mn": 3, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 3, "mo": 1, "mu": 0}, {"c": "LXX-0071", "d": "Air wick (Aromatizante en Gel)", "u": "PZA", "k": "LXX", "s": 0, "mn": 10, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 10, "mo": 1, "mu": 0}, {"c": "LXX-0072", "d": "Air wick (Repuestos)", "u": "PZA", "k": "LXX", "s": 0, "mn": 12, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 12, "mo": 1, "mu": 0}, {"c": "LXX-0073", "d": "Febreeze ( Aromatizante en Aerosol)", "u": "PZA", "k": "LXX", "s": 0, "mn": 3, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "COSTCO WHOLESALE MEXICO", "pp": "", "ss": 3, "mo": 1, "mu": 0}, {"c": "LXX-0074", "d": "Lysol (Desinfectante en Spray)", "u": "PZA", "k": "LXX", "s": 0, "mn": 8, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "SMART & FINAL", "pp": "", "ss": 8, "mo": 1, "mu": 0}, {"c": "LXX-0075", "d": "Pledge (Cera p/madera)", "u": "PZA", "k": "LXX", "s": 0, "mn": 6, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "COSTCO WHOLESALE MEXICO", "pp": "", "ss": 6, "mo": 1, "mu": 0}, {"c": "LXX-0080", "d": "Bolsas Negras p/basura 10 galones", "u": "PZA", "k": "LXX", "s": 0, "mn": 5, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "DESEPLAS", "pp": "", "ss": 5, "mo": 1, "mu": 0}, {"c": "LXX-0081", "d": "Bolsas Negras p/basura 30 galones", "u": "PZA", "k": "LXX", "s": 0, "mn": 5, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "DESEPLAS", "pp": "", "ss": 5, "mo": 1, "mu": 0}, {"c": "LXX-0082", "d": "Bolsas Negras p/basura 40 galones", "u": "PZA", "k": "LXX", "s": 0, "mn": 5, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "DESEPLAS", "pp": "", "ss": 5, "mo": 1, "mu": 0}, {"c": "LXX-0083", "d": "Bolsas Negras p/basura 55 galones", "u": "PZA", "k": "LXX", "s": 0, "mn": 5, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "DESEPLAS", "pp": "", "ss": 5, "mo": 1, "mu": 0}, {"c": "LXX-0084", "d": "Papel secante para manos cajas", "u": "PZA", "k": "LXX", "s": 0, "mn": 15, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "COSTCO WHOLESALE MEXICO", "pp": "", "ss": 15, "mo": 1, "mu": 0}, {"c": "LXX-0085", "d": "Papel Higiénico cajas", "u": "PZA", "k": "LXX", "s": 0, "mn": 15, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "COSTCO WHOLESALE MEXICO", "pp": "", "ss": 15, "mo": 1, "mu": 0}, {"c": "LXX-0086", "d": "Toallitas Húmedas Escudo (antibacterial) caja1", "u": "PZA", "k": "LXX", "s": 0, "mn": 2, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 2, "mo": 1, "mu": 0}, {"c": "M300VT-00-CR011", "d": "INSERTO MYTEE M300VT-00-CR011", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 1, "mo": 1, "mu": 0}, {"c": "M300VT-00-CR012", "d": "INSERTO TOP M300VT-00-CR012", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 1, "mo": 1, "mu": 0}, {"c": "M80TV-00", "d": "HECHO EN ELITE (CNC)", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "P10050-01", "d": "SILICÓN CONCENTRADO EN AEROSOL (DESMOLDANTE)", "u": "PZA", "k": "", "s": -181, "mn": 36, "rp": 36, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "P10382", "d": "RUST PREVENTIVE EN AEROSOL (DESCONTINUADO, SE TRASPASA A ALMACEN MP)", "u": "PZA", "k": "", "s": -9, "mn": 6, "rp": 6, "lt": 1.0, "cm": 0, "l": "ALMACEN MP - NAVE 2", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "P10766", "d": "MANGUERA PARA VACIADO POLIURETANO (MPK95U-8-062-0250) - 100 PIES/CAJA", "u": "PIES", "k": "", "s": 499, "mn": 600, "rp": 600, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "PA6N1.5-4", "d": "3-PHASE GENERAL PURPOSE MOTOR PA6N1.5-4", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Grainger Mexico", "pp": "", "ss": 2, "mo": 2, "mu": 1}, {"c": "PD2-C4118L1804-E-08", "d": "Stepper motor with integrated controller/drive – NEMA 17 PD2-C4118L1804-E-08", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Nanotec", "pp": "", "ss": 2, "mo": 2, "mu": 1}, {"c": "PD4-C-K3V31878", "d": "Nanotec PD4-C-K3V31878", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Nanotec", "pp": "", "ss": 1, "mo": 1, "mu": 1}, {"c": "PD4-C-K3V32489", "d": "High-pole smart stepper motor Nanotec PD4-C-K3V32489", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Nanotec", "pp": "", "ss": 1, "mo": 1, "mu": 1}, {"c": "PD4-C-K3V32490", "d": "Smart motor with step input Nanotec PD4-C-K3V32490", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Nanotec", "pp": "", "ss": 1, "mo": 1, "mu": 1}, {"c": "PD4-C5918L4204-E-08", "d": "Brushless DC servo motor with integrated controller (stepper motor) Nanotec Motor PD4-C5918L4204-E-08", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Nanotec", "pp": "", "ss": 4, "mo": 2, "mu": 1}, {"c": "PVE19LW Q1830 1 30 CVP 12", "d": "PISTON PUMP VICKERS PVE19LW Q1830 1 30 CVP 12", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Hydraulic Parts Source", "pp": "", "ss": 1, "mo": 1, "mu": 1}, {"c": "RE-77-P30", "d": "PITCH PLATE 464TH 37RH #370545", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Maag Reduction , Inc", "pp": "", "ss": 4, "mo": 4, "mu": 1}, {"c": "SA47 DRS71M4", "d": "GEAR MOTOR SEW EURODRIVE SA47 DRS71M4", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Radwell International", "pp": "", "ss": 1, "mo": 1, "mu": 1}, {"c": "SBX-0001", "d": "BOTELLA DE RESPUESTO DE SOLUCION SALINA - 32OZ", "u": "PZA", "k": "SBX", "s": 58, "mn": 5, "rp": 5, "lt": 1.0, "cm": 0, "l": "", "p": "Uline Mexico", "pp": "", "ss": 3, "mo": 3, "mu": 0}, {"c": "SBX-0002", "d": "VASO MUESTRA PARA ANTIDOPING - 100ML", "u": "PZA", "k": "SBX", "s": 132, "mn": 50, "rp": 50, "lt": 1.0, "cm": 0, "l": "ESTANTE PAPELERIA", "p": "", "pp": "", "ss": 89, "mo": 89, "mu": 0}, {"c": "SBX-0003", "d": "PRUEBA ANTIDOPING DE 5 PARAMETROS", "u": "PZA", "k": "SBX", "s": 51, "mn": 50, "rp": 50, "lt": 1.0, "cm": 0, "l": "ESTANTE PAPELERIA", "p": "", "pp": "", "ss": 34, "mo": 34, "mu": 0}, {"c": "SEX-0001", "d": "GUANTE POLIURETANO - XS", "u": "PAR", "k": "SEX", "s": 20, "mn": 60, "rp": 60, "lt": 1.0, "cm": 1.0, "l": "MRO-01-D2", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "S-14317-XS", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0002", "d": "GUANTE POLIURETANO - S", "u": "PAR", "k": "SEX", "s": 297, "mn": 60, "rp": 60, "lt": 1.0, "cm": 17.0, "l": "MRO-01-D2", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "S-14317-S", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0003", "d": "GUANTE POLIURETANO - M", "u": "PAR", "k": "SEX", "s": 103, "mn": 60, "rp": 60, "lt": 1.0, "cm": 30.0, "l": "MRO-01-E2", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "S-14317-M", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0004", "d": "GUANTE POLIURETANO - L", "u": "PAR", "k": "SEX", "s": 63, "mn": 60, "rp": 62, "lt": 1.0, "cm": 31.0, "l": "MRO-01-E2", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "S-14317-L", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0005", "d": "GUANTE POLIURETANO - XL", "u": "PAR", "k": "SEX", "s": 97, "mn": 60, "rp": 60, "lt": 1.0, "cm": 14.0, "l": "MRO-01-E2", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "S-14317-XL", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0006", "d": "MANGA ANTICORTE 18''", "u": "PAR", "k": "SEX", "s": 14, "mn": 25, "rp": 25, "lt": 1.0, "cm": 304.0, "l": "MRO-01-F2", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "11-210", "ss": 200, "mo": 200, "mu": 400}, {"c": "SEX-0007", "d": "GUANTES DE LATEX - S", "u": "CAJA", "k": "SEX", "s": -10, "mn": 20, "rp": 20, "lt": 1.0, "cm": 8.0, "l": "MRO-01-D1", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "S-16767-S", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0008", "d": "GUANTES DE LATEX - M", "u": "CAJA", "k": "SEX", "s": 34500, "mn": 20, "rp": 20, "lt": 1.0, "cm": 5.0, "l": "MRO-01-D1", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "S-16767-M", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0009", "d": "GUANTES DE LATEX - L", "u": "CAJA", "k": "SEX", "s": 38105, "mn": 20, "rp": 20, "lt": 1.0, "cm": 5.0, "l": "MRO-01-E1", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "S-16767-L", "ss": 4000, "mo": 1000, "mu": 100}, {"c": "SEX-0010", "d": "GUANTES DE LATEX - XL", "u": "CAJA", "k": "SEX", "s": -4, "mn": 109, "rp": 8, "lt": 1.0, "cm": 4.0, "l": "MRO-01-E1", "p": "Uline Mexico", "pp": "S-16767-XL", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0011", "d": "GUANTES ANTI CORTE - #6 / XS", "u": "PAR", "k": "SEX", "s": 6, "mn": 5, "rp": 0, "lt": 1.0, "cm": 0, "l": "MRO-01-D3", "p": "Amazon Mx", "pp": "11-727-XS", "ss": 5, "mo": 5, "mu": 0}, {"c": "SEX-0012", "d": "GUANTES ANTI CORTE - #7 / S", "u": "PAR", "k": "SEX", "s": 177, "mn": 57, "rp": 6, "lt": 1.0, "cm": 3.0, "l": "MRO-01-D3", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "11-727-S", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0013", "d": "GUANTES ANTI CORTE - #8 / M", "u": "PAR", "k": "SEX", "s": 117, "mn": 88, "rp": 18, "lt": 1.0, "cm": 9.0, "l": "MRO-01-D3", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "11-727-M", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0014", "d": "GUANTES ANTI CORTE - #9 / L", "u": "PAR", "k": "SEX", "s": 96, "mn": 114, "rp": 38, "lt": 1.0, "cm": 19.0, "l": "MRO-01-E3", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "11-727-L", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0015", "d": "GUANTES ANTI CORTE - #10 / XL", "u": "PAR", "k": "SEX", "s": 114, "mn": 50, "rp": 30, "lt": 1.0, "cm": 15.0, "l": "MRO-01-E3", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "11-727-XL", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0016", "d": "CASCO AMARILLO", "u": "PZA", "k": "SEX", "s": 86, "mn": 3, "rp": 0, "lt": 1.0, "cm": 32.0, "l": "", "p": "Amazon Mx", "pp": "CASCO-A", "ss": 3, "mo": 3, "mu": 0}, {"c": "SEX-0017", "d": "LENTES DE SEGURIDAD", "u": "PZA", "k": "SEX", "s": 61, "mn": 561, "rp": 104, "lt": 1.0, "cm": 52.0, "l": "MRO-01-E1", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "EPP-LS", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0018", "d": "LENTES CON RECUBRIMIENTO", "u": "PZA", "k": "SEX", "s": 55, "mn": 104, "rp": 12, "lt": 1.0, "cm": 6.0, "l": "MRO-01-E1", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "EPP-LSCR", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0019", "d": "CARTUCHOS PARA VAPOR P/MASCARA 1/2 CARA", "u": "PZA", "k": "SEX", "s": 210, "mn": 97, "rp": 2, "lt": 1.0, "cm": 1.0, "l": "MRO-01-F1", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "3M-CART", "ss": 40, "mo": 2, "mu": 2}, {"c": "SEX-0020", "d": "FILTROS ROSA P/MASCARA 1/2 CARA", "u": "PAR", "k": "SEX", "s": 15, "mn": 50, "rp": 6, "lt": 1.0, "cm": 3.0, "l": "MRO-01-F1", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "3M-FILT", "ss": 50, "mo": 50, "mu": 0}, {"c": "SEX-0021", "d": "MASCARA 1/2 CARA", "u": "PZA", "k": "SEX", "s": 2, "mn": 60, "rp": 0, "lt": 1.0, "cm": 55.0, "l": "MRO-01-F1", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "3M-MASC", "ss": 60, "mo": 60, "mu": 0}, {"c": "SEX-0022", "d": "BOTA NEGRA C/ ROJO #23", "u": "PAR", "k": "SEX", "s": 17, "mn": 5, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "RDX-23", "ss": 5, "mo": 5, "mu": 0}, {"c": "SEX-0023", "d": "BOTA NEGRA C/ ROJO #24", "u": "PAR", "k": "SEX", "s": 16, "mn": 40, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "RDX-24", "ss": 40, "mo": 40, "mu": 0}, {"c": "SEX-0024", "d": "BOTA NEGRA C/ ROJO #25", "u": "PAR", "k": "SEX", "s": 14, "mn": 10, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "RDX-25", "ss": 10, "mo": 10, "mu": 0}, {"c": "SEX-0025", "d": "BOTA NEGRA C/ ROJO #26", "u": "PAR", "k": "SEX", "s": 25, "mn": 6, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "RDX-26", "ss": 6, "mo": 6, "mu": 0}, {"c": "SEX-0026", "d": "BOTA NEGRA C/ ROJO #27", "u": "PAR", "k": "SEX", "s": 22, "mn": 21, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "RDX-27", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0027", "d": "BOTA NEGRA C/ ROJO #28", "u": "PAR", "k": "SEX", "s": 17, "mn": 10, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "RDX-28", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0028", "d": "BOTA NEGRA C/ ROJO #29", "u": "PAR", "k": "SEX", "s": -12, "mn": 3, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "RDX-29", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0029", "d": "BOTA NEGRA C/ ROJO #30", "u": "PZA", "k": "SEX", "s": 3, "mn": 1, "rp": 0, "lt": 1.0, "cm": 1.0, "l": "MRO-01-E3", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "FAJA-S", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0030", "d": "FAJA - M", "u": "PZA", "k": "SEX", "s": 10, "mn": 22, "rp": 6, "lt": 1.0, "cm": 3.0, "l": "MRO-01-E3", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "FAJA-M", "ss": 22, "mo": 22, "mu": 0}, {"c": "SEX-0031", "d": "FAJA - L", "u": "PZA", "k": "SEX", "s": 16, "mn": 16, "rp": 2, "lt": 1.0, "cm": 1.0, "l": "MRO-01-F3", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "FAJA-L", "ss": 16, "mo": 16, "mu": 0}, {"c": "SEX-0032", "d": "FAJA - XL", "u": "PZA", "k": "SEX", "s": 12, "mn": 10, "rp": 2, "lt": 1.0, "cm": 1.0, "l": "MRO-01-F3", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "FAJA-XL", "ss": 10, "mo": 10, "mu": 0}, {"c": "SEX-0033", "d": "FAJA - 2XL", "u": "PZA", "k": "SEX", "s": 21, "mn": 4, "rp": 0, "lt": 1.0, "cm": 3.0, "l": "MRO-01-F3", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "FAJA-2XL", "ss": 4, "mo": 4, "mu": 0}, {"c": "SEX-0034", "d": "GORRA (DESCONTINUADO-NO SOLICITAR)", "u": "PZA", "k": "SEX", "s": -14, "mn": 2, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "GORR-RNA", "ss": 2, "mo": 2, "mu": 0}, {"c": "SEX-0035", "d": "GUANTES AMARILLOS DE CARNAZA - M", "u": "PAR", "k": "SEX", "s": 291, "mn": 14, "rp": 0, "lt": 1.0, "cm": 17.0, "l": "MRO-01-F2", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "GAC-M", "ss": 30, "mo": 10, "mu": 10}, {"c": "SEX-0036", "d": "GUANTES AMARILLOS DE CARNAZA - L", "u": "PAR", "k": "SEX", "s": 160, "mn": 91, "rp": 0, "lt": 1.0, "cm": 71.0, "l": "MRO-01-F2", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "GAC-L", "ss": 40, "mo": 3, "mu": 3}, {"c": "SEX-0037", "d": "OVEROL BLANCO - S (DESCONTINUADO-NO SOLICITAR)", "u": "PZA", "k": "SEX", "s": -33, "mn": 5, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "JYR-407-S", "ss": 5, "mo": 5, "mu": 0}, {"c": "SEX-0038", "d": "OVEROL BLANCO - M", "u": "PZA", "k": "SEX", "s": 0, "mn": 7, "rp": 0, "lt": 1.0, "cm": 0, "l": "", "p": "", "pp": "JYR-407 -M", "ss": 7, "mo": 7, "mu": 0}, {"c": "SEX-0039", "d": "OVEROL BLANCO - L", "u": "PZA", "k": "SEX", "s": 1220, "mn": 157, "rp": 0, "lt": 1.0, "cm": 173.0, "l": "MRO-01-F1", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "JYR-407 -L", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0040", "d": "OVEROL BLANCO - XL", "u": "PZA", "k": "SEX", "s": 935, "mn": 268, "rp": 0, "lt": 1.0, "cm": 332.0, "l": "MRO-01-F1", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "JYR-407-XL", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0041", "d": "PORTAHERRAMIENTA", "u": "PZA", "k": "SEX", "s": 0, "mn": 18, "rp": 0, "lt": 1.0, "cm": 19.0, "l": "MRO-01-F2", "p": "", "pp": "PORT-H", "ss": 18, "mo": 18, "mu": 0}, {"c": "SEX-0042", "d": "TAPON AUDITIVO", "u": "CAJA", "k": "SEX", "s": 7200, "mn": 24, "rp": 0, "lt": 1.0, "cm": 27.0, "l": "MRO-01-F1", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "TAP-A", "ss": 200, "mo": 200, "mu": 400}, {"c": "SEX-0043", "d": "SUERO HIDRATANTE", "u": "PZA", "k": "SEX", "s": 4, "mn": 462, "rp": 0, "lt": 1.0, "cm": 468.0, "l": "MRO-01-D2", "p": "Mercado Libre MX", "pp": "HIDRO", "ss": 462, "mo": 462, "mu": 0}, {"c": "SEX-0044", "d": "MANDIL", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "MAND-MEZ", "ss": 140, "mo": 140, "mu": 0}, {"c": "SEX-0045", "d": "MUÑEQUERA", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "MUÑEQ-00", "ss": 117, "mo": 117, "mu": 0}, {"c": "SEX-0046", "d": "CUBREBOCAS", "u": "CAJA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "CUBRE-00", "ss": 1560, "mo": 1560, "mu": 0}, {"c": "SEX-0047", "d": "RODILLERAS", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "RODIL-NEG", "ss": 40, "mo": 40, "mu": 0}, {"c": "SEX-0048", "d": "GOOGLE SHADE 5 HYPERTHERM", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "GOOGLE-UV", "ss": 2, "mo": 2, "mu": 0}, {"c": "SEX-0049", "d": "PORTAHERRAMIENTA CHICO CON 5 BOLSILLOS", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "PORT-5B", "ss": 33, "mo": 33, "mu": 0}, {"c": "SEX-0050", "d": "GUANTE DE ALGODON PARA SOLDADURA", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "GUANT-ALG", "ss": 10, "mo": 10, "mu": 0}, {"c": "SEX-0051", "d": "GUANTE DE CALOR", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Uline Mexico", "pp": "GUANT-CALOR", "ss": 9, "mo": 9, "mu": 0}, {"c": "SEX-0052", "d": "BANDA DE RESPUESTO (CASCO AMARILLO)", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Uline Mexico", "pp": "BANDA-REP-CASC", "ss": 44, "mo": 44, "mu": 0}, {"c": "SEX-0053", "d": "MANGA 18'' ''ALTA TEMPERATURA''", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "IND.SAFETY", "pp": "MANG-18-ALTATEM", "ss": 12, "mo": 12, "mu": 0}, {"c": "SEX-0054", "d": "GUANTES TIG - L", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "GUANT-TIG-L", "ss": 20, "mo": 20, "mu": 1}, {"c": "SEX-0055", "d": "GUANTE NITRILO - XS", "u": "CAJA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "R3", "pp": "NITRI-XS", "ss": 45, "mo": 45, "mu": 0}, {"c": "SEX-0056", "d": "BOTA NEGRA C/ ROJO #22", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "RDX-22", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0057", "d": "BOTA NEGRA C/ ROJO #30", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "RDX-30", "ss": 8, "mo": 8, "mu": 0}, {"c": "SEX-0058", "d": "BOTA NEGRA C/ ROJO #31", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "RDX-31", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0059", "d": "BOTA NEGRA C/ AZUL #22", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "STX-22", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0060", "d": "BOTA NEGRA C/ AZUL #23", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "STX-23", "ss": 2, "mo": 2, "mu": 0}, {"c": "SEX-0061", "d": "BOTA NEGRA C/ AZUL #24", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "STX-24", "ss": 2, "mo": 2, "mu": 0}, {"c": "SEX-0062", "d": "BOTA NEGRA C/ AZUL #25", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "STX-25", "ss": 1, "mo": 1, "mu": 0}, {"c": "SEX-0063", "d": "BOTA NEGRA C/ AZUL #26", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "STX-26", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0064", "d": "BOTA NEGRA C/ AZUL #27", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "STX-27", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0065", "d": "BOTA NEGRA C/ AZUL #28", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "STX-28", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0066", "d": "BOTA NEGRA C/ AZUL #29", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "STX-29", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0067", "d": "BOTA NEGRA C/ AZUL #30", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "STX-30", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0068", "d": "BOTA NEGRA C/ AZUL #31", "u": "PAR", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "STX-31", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0069", "d": "Toallitas Humedas con alcohol S-16183 JE0011-00", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 3, "mo": 3, "mu": 0}, {"c": "SEX-0070", "d": "GUANTES SANDBLASTEO (SandBlast Nave 4) 10 X 30''", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 3, "mo": 3, "mu": 0}, {"c": "SEX-0071", "d": "GUANTES TIG PARA SOLDAR MARCA CAIMAN 1600 - M", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "", "ss": 3, "mo": 3, "mu": 0}, {"c": "SEX-0072", "d": "CARETA PROTECTOR FACIAL AMARILLA", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "", "ss": 7, "mo": 7, "mu": 0}, {"c": "SEX-0073", "d": "FAJA - S", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 4, "mo": 4, "mu": 0}, {"c": "SEX-0074", "d": "RPB SAFETY LENS Z-LINK 16-810", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Grainger Mexico", "pp": "", "ss": 2, "mo": 2, "mu": 0}, {"c": "SEX-0075", "d": "RPB SAFETY LENS Z4 15-878", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Grainger Mexico", "pp": "", "ss": 2, "mo": 2, "mu": 0}, {"c": "SEX-0076", "d": "RPB SAFETY WELDING IMPACT LENS Z-LINK 16-873", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Grainger Mexico", "pp": "", "ss": 2, "mo": 2, "mu": 0}, {"c": "SEX-0077", "d": "RPB SAFETY WELDING IMPACT LENS Z-LINK 16-872", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Grainger Mexico", "pp": "", "ss": 9, "mo": 9, "mu": 0}, {"c": "SEX-0078", "d": "MASCARA DE RESPIRADOR DE CARA COMPLETA", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "", "ss": 18, "mo": 18, "mu": 0}, {"c": "SEX-0079", "d": "GUANTE ROJO DE ALTA TEMPERATURA - L", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "", "ss": 14, "mo": 14, "mu": 0}, {"c": "SEX-0080", "d": "LENTES DE SEGURIDAD PARA VISITA (PROTECCION PARA LENTES PERSONALES)", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Uline Mexico", "pp": "", "ss": 4, "mo": 4, "mu": 0}, {"c": "SEX-0081", "d": "GABARDINA IMPERMEABLE - TALLA CHICA", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 1, "mo": 1, "mu": 0}, {"c": "SEX-0082", "d": "GABARDINA IMPERMEABLE - TALLA MEDIANA", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 3, "mo": 3, "mu": 0}, {"c": "SEX-0083", "d": "GABARDINA IMPERMEABLE - TALLA GRANDE", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 17, "mo": 17, "mu": 0}, {"c": "SEX-0084", "d": "GABARDINA IMPERMEABLE - TALLA EXTRA GRANDE", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "", "ss": 2, "mo": 2, "mu": 0}, {"c": "SEX-0085", "d": "GUANTES DE ALGODON PARA INSPECCION (BLANCOS)", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Uline Mexico", "pp": "", "ss": 504, "mo": 504, "mu": 0}, {"c": "SEX-0086", "d": "GUANTES DE CAUCHO RESISTENTES A QUIMICOS - XL", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "", "ss": 3, "mo": 3, "mu": 0}, {"c": "SEX-0087", "d": "GUANTES TEJIDO SIN RECUBRIMIENTO - PIP 35-C104 - S", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Uline Mexico", "pp": "", "ss": 114, "mo": 114, "mu": 0}, {"c": "SEX-0088", "d": "CUBREZAPATOS DESECHABLES ANTIDESLIZANTES", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0089", "d": "GUANTES PARA SOLDAR - MILLER #233340 - TALLA L", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Grainger Mexico", "pp": "", "ss": 7, "mo": 7, "mu": 0}, {"c": "SEX-0090", "d": "GUANTES PARA SOLDAR - MILLER #233340 - TALLA XL", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Grainger Mexico", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0091", "d": "BATA DE AISLAMIENTO DESECHABLE", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Uline Mexico", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "SEX-0092", "d": "", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 60, "mo": 15, "mu": 3}, {"c": "SEX-0093", "d": "", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Uline Mexico", "pp": "", "ss": 60, "mo": 15, "mu": 3}, {"c": "SEX-0094", "d": "MUÑEQUERA TIPO BANDA", "u": "PZA", "k": "SEX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "", "ss": 20, "mo": 10, "mu": 1}, {"c": "TCA-0001", "d": "FULL TAPER CARTRIDGE ROLL 3/8 X 1 X 1/8 G60", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mcmaster-Carr", "pp": "11904", "ss": 411, "mo": 411, "mu": 0}, {"c": "TCA-0002", "d": "FULL TAPER CARTRIDGE ROLL 3/8 X 1 X 1/8 G120", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mcmaster-Carr", "pp": "11906", "ss": 157, "mo": 157, "mu": 0}, {"c": "TCA-0003", "d": "HOJA LIJA DE AGUA 9 X 11 G2000", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "39378", "ss": 19, "mo": 19, "mu": 0}, {"c": "TCA-0004", "d": "DISCO 8 X 1/2 F2506 NOR", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "4506", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0005", "d": "LIJA CIRCULAR P60 5'' X 060 GRIT C/100 ROLLO", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "KNIGHT", "pp": "NOR78072748552", "ss": 6, "mo": 6, "mu": 0}, {"c": "TCA-0006", "d": "FIBRA CIRCULAR MARRON 8'' X 1/2", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Knight Industrial de Mexico", "pp": "NOR66261004506", "ss": 62, "mo": 62, "mu": 0}, {"c": "TCA-0007", "d": "Disco de alambre para esmeril de 6'' 3/4", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "DISC-ALAM-6X3/4", "ss": 3, "mo": 3, "mu": 0}, {"c": "TCA-0008", "d": "PASTA CAFE CAJA 25 KG", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "PASTA-CAF", "ss": 52625, "mo": 52625, "mu": 0}, {"c": "TCA-0009", "d": "PASTA GRIS CAJA 25 KG", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "PASTA-GRIS", "ss": 32514, "mo": 32514, "mu": 0}, {"c": "TCA-0010", "d": "PASTA VERDE CAJA 25 KG", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "PASTA-VERD", "ss": 98461, "mo": 98461, "mu": 0}, {"c": "TCA-0011", "d": "PASTA BLANCO CAJA 25 KG", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "PASTA-BLANC", "ss": 2, "mo": 2, "mu": 0}, {"c": "TCA-0012", "d": "CAJA LIJA #80 C X 50", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "VSM79555", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0013", "d": "FIBRA MARRON NORTON CAJA C/20 PCS", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "KNIGHT", "pp": "74700", "ss": 373, "mo": 373, "mu": 0}, {"c": "TCA-0014", "d": "LIJA CIRCULAR P220 NORTON", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "66623376276", "ss": 374, "mo": 374, "mu": 0}, {"c": "TCA-0015", "d": "LIJA HOJA #100", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "VSM79556", "ss": 14, "mo": 14, "mu": 0}, {"c": "TCA-0016", "d": "LIJA HOJA #400", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "VSM51331", "ss": 20, "mo": 20, "mu": 0}, {"c": "TCA-0017", "d": "LIJA HOJA G2000", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "1139378", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0018", "d": "LIJAS BANDA #400", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "32723", "ss": 6, "mo": 6, "mu": 0}, {"c": "TCA-0019", "d": "9 X 11 100 GRIT KK114F SHEET (500 ea)", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "VSM 79556", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0020", "d": "1 X 4-1/2 220 GRIT A/O SPIRALBAND 50/BX", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "SUP 60471", "ss": 50, "mo": 50, "mu": 0}, {"c": "TCA-0021", "d": "1 X 4-1/2 180 GRIT A/O SPIRALBAND 50/BX", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "SUP 60470", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0022", "d": "1 X 4-1/2 320 GRIT A/O SPIRALBAND 50/BX", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "SUP 60472", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0023", "d": "3/16'' HEX, T-HANDLE CUSHION GRIP, BALL END HEX KEY", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "KIS 43714302", "ss": 2, "mo": 2, "mu": 0}, {"c": "TCA-0024", "d": "1/8 X 1-1/2 SHANK 80 GRIT A/O", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "MOD 046BE7RD1", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0025", "d": "1/8 X 5/16 X 1/8 60 GRIT MEDIUM", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "NOR 61463624416", "ss": 4, "mo": 4, "mu": 0}, {"c": "TCA-0026", "d": "3 X 2 X 1/4'' A/O M GRITE BEARTEX", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "MER 66261058474", "ss": 1, "mo": 1, "mu": 0}, {"c": "TCA-0027", "d": "3 X 1 X 1/4, 120 GRIT, AO, VF NONWOVEN INTERLEAF FLAP WHEEL (10EA/BX)", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "MER 08834138118", "ss": 17, "mo": 17, "mu": 0}, {"c": "TCA-0028", "d": "2'' 60 GRT R981 TIPO TR CERAM DISC", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "MER 883416412", "ss": 1, "mo": 1, "mu": 0}, {"c": "TCA-0029", "d": "9 X 11 800 GRIT BLACK ICE 250 PKQ", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "NOR 66261139382", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0030", "d": "9 X 11 2000 GRIT BLACK ICE PKQ 250 PKQ", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "NOR 66261139378", "ss": 417, "mo": 417, "mu": 0}, {"c": "TCA-0031", "d": "2'' MED TYPE 3 PWR LCK HOLDER", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "MER 8834164922", "ss": 1, "mo": 1, "mu": 0}, {"c": "TCA-0032", "d": "3'' MED TYPE 3 PWR LCK HOLDER", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "MER 8834164949", "ss": 1, "mo": 1, "mu": 0}, {"c": "TCA-0033", "d": "2¨ TIPO TR MEDIUM QUICK CHANGE (MER 8834166290)", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "KNIGHT", "pp": "MER 88341-66290", "ss": 1037, "mo": 1037, "mu": 0}, {"c": "TCA-0034", "d": "3¨ TIPO TR VERY FINE VORTEX QUICK CHANGE DISC", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Grainger Mexico", "pp": "NOR 66623335437", "ss": 2, "mo": 2, "mu": 0}, {"c": "TCA-0035", "d": "5 X 0 X 250 600 GRIT A296 PSA", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "NOR 77696075425", "ss": 3, "mo": 3, "mu": 0}, {"c": "TCA-0036", "d": "1¨ 180 GRIT TIPO TR QUICK CHANGE CLOTH CAJA /100PCS", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "MER 69957399690", "ss": 138, "mo": 138, "mu": 0}, {"c": "TCA-0037", "d": "2¨TIPO TR A/O GRIT MEDIUM SPED HI STREGTH CAJA C/40", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "KNIGHT", "pp": "662610-14792", "ss": 1470, "mo": 1470, "mu": 0}, {"c": "TCA-0038", "d": "2¨X 12¨Z 1/4¨ A/O GRIT MEDIUM", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "NOR 66261051716", "ss": 3, "mo": 3, "mu": 0}, {"c": "TCA-0039", "d": "2¨TIPO TR GRIT VERY FINE QUICK CHANCE D", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Knight Industrial de Mexico", "pp": "SUP 10555B", "ss": 10, "mo": 10, "mu": 0}, {"c": "TCA-0040", "d": "3/8¨1¨1/8¨ GRIT 120 A/O CARTRIGE ROLL CAJA C/100", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "SUP 11906", "ss": 358, "mo": 358, "mu": 0}, {"c": "TCA-0041", "d": "3¨ X 1-3/4¨ F2301 MEDIUM MINI WHREEL", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "MER 66261026075", "ss": 1, "mo": 1, "mu": 0}, {"c": "TCA-0042", "d": "1 X 30 GRIT VERY FINE NON WOVEN BELT", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "NOR 66261001972", "ss": 1, "mo": 1, "mu": 0}, {"c": "TCA-0043", "d": "1 X 30 GRIT MEDIUM NON WOVEN BELT", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "NOR 66623336006", "ss": 4, "mo": 4, "mu": 0}, {"c": "TCA-0044", "d": "2¨X 118 GRIT 400 SERIE TAJ BEL 507 BOX", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "KNIGHT", "pp": "LIJA-BAND-G150", "ss": 5, "mo": 5, "mu": 0}, {"c": "TCA-0045", "d": "3¨ GRIT MEDIUM NON WOVEN BOX/25", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "MER 66223335430", "ss": 105, "mo": 105, "mu": 0}, {"c": "TCA-0046", "d": "CEPILLO DE ALAMBRE DENTAL 3X7 #1880308", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Uline Mexico", "pp": "CEP-ALA3X7", "ss": 31, "mo": 31, "mu": 0}, {"c": "TCA-0047", "d": "3'' 60 GRIT SPE ZMD TYP 3 SL3 DISC 50/BX", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "MER 77696095198", "ss": 147, "mo": 147, "mu": 0}, {"c": "TCA-0048", "d": "2 X 118 600 GRIT TAJ BELT FUJI STAR EXCALIBUR BELT (50EA/BX)", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "KIS 35661", "ss": 1, "mo": 1, "mu": 0}, {"c": "TCA-0049", "d": "3/8 X 1 X 1/8 X GRANO 60 CAJA C/100 PCS", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "SUP 11904", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0050", "d": "1/2 X 1.5 X1/4 60 GRIT A/O 100/BX", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "SUP PL16158", "ss": 5, "mo": 5, "mu": 0}, {"c": "TCA-0051", "d": "DISCO DE LIJA AUTOABDERIBLES GRANO 60 CIRCULAR / PULIDO 10 PCS", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "2256 / LOT 153104", "ss": 14, "mo": 14, "mu": 0}, {"c": "TCA-0052", "d": "SPIRAL WOUND BANDS C/100 GRANO 80 1/2 X 3/4", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "8834196573", "ss": 3, "mo": 3, "mu": 0}, {"c": "TCA-0053", "d": "CAJA C/75 PCS PUNTA CERILLO (690081149045)", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "1149045", "ss": 5, "mo": 5, "mu": 0}, {"c": "TCA-0054", "d": "120 GRIT 1-1/2 X 30 BANDA", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "LIJA-B120", "ss": 8, "mo": 8, "mu": 0}, {"c": "TCA-0055", "d": "100 GRIT 1-1/2 X30 BANDA", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "LIJA-B100", "ss": 1, "mo": 1, "mu": 0}, {"c": "TCA-0056", "d": "180 GRIT 1-1/2 X 30 BANDA", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "LIJA-B180", "ss": 20, "mo": 20, "mu": 0}, {"c": "TCA-0057", "d": "1/4 VERY FINE C/10 2X1", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "69957399202", "ss": 1, "mo": 1, "mu": 0}, {"c": "TCA-0058", "d": "1/4X180 C/10", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "8834144458", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0059", "d": "DISCO 2'' 60 GRIT CERAMICA C /100", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Knight Industrial de Mexico", "pp": "8834163412", "ss": 1583, "mo": 1583, "mu": 0}, {"c": "TCA-0060", "d": "3'' GRIT MEDIUM BOX C/25", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "66623335430", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0061", "d": "2 X 1 GRANO MEDIUM C/10", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "66261189992", "ss": 2, "mo": 2, "mu": 0}, {"c": "TCA-0062", "d": "1X30 VERY FINE CAJA C/12", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "8834199509", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0063", "d": "1 X30 VERY FINE", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "66261001972", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0064", "d": "1X30 VERY FINE", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "TRANSFER 47505A115", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0065", "d": "1X30 MEDIUM MARRON", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "TRANSFER 47505A116", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0066", "d": "NORTON 1X30 COLOR MARRON MEDIUM CAJA C/12 PCS", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "66623336006", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0067", "d": "LIJA BANDA 1-1/2 X 30 MARRON GRANO", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "LIJA-B1-1/2X30M", "ss": 12, "mo": 12, "mu": 0}, {"c": "TCA-0068", "d": "LIJA BANDA 1-1/2 X 30 VERY FINE", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "LIJA-B1-1/2X30VF", "ss": 2, "mo": 2, "mu": 0}, {"c": "TCA-0069", "d": "LIJA BANDA GRANO 320 6X48", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "LIJA-B320", "ss": 27, "mo": 27, "mu": 0}, {"c": "TCA-0070", "d": "LIJA BANDA GRANO 800 6X48", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "LIJA-B800", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0071", "d": "HOJA LIJA #1000 C/50 PCS #4680A33", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "662611393819", "ss": 14, "mo": 14, "mu": 0}, {"c": "TCA-0072", "d": "HOJA LIJA #2000 C/50 PCS", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "LIJA-H2000", "ss": 20, "mo": 20, "mu": 0}, {"c": "TCA-0073", "d": "LIJA MADERA FANDELI G-120 00047", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "1500120", "ss": 24, "mo": 24, "mu": 0}, {"c": "TCA-0074", "d": "LIJA AGUA FANDELI GRANO #G-600 00044", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "LIJA-A600", "ss": 17, "mo": 17, "mu": 0}, {"c": "TCA-0075", "d": "NORTON LIJA HOJA 9X11 CAJA 25 C/U P80", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "NOR66261126340", "ss": 11, "mo": 11, "mu": 0}, {"c": "TCA-0076", "d": "NORTON LIJA HOJA 9X11 P120CAJA C/100", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "NOR 66261100290", "ss": 21, "mo": 21, "mu": 0}, {"c": "TCA-0077", "d": "NORTON LIJA HOJA 9X11 P100 CAJA C/50", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "NOR 66261126339", "ss": 30, "mo": 30, "mu": 0}, {"c": "TCA-0078", "d": "NORTON LIJA HOJA P150 CAJA C/50", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "NOR 66261126337", "ss": 22, "mo": 22, "mu": 0}, {"c": "TCA-0079", "d": "NORTON LIJAHOJA 9X11 P400 CAJA C/50", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "NOR 66261126331", "ss": 17, "mo": 17, "mu": 0}, {"c": "TCA-0080", "d": "NORTON LIJA HOJA 9X11 P120 CAJA C/25", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "NOR 66261100950", "ss": 19, "mo": 19, "mu": 0}, {"c": "TCA-0081", "d": "NORTON LIJA HOJA 9X11 P320 CAJA C/25", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mercado Libre MX", "pp": "NOR 66261100920", "ss": 10, "mo": 10, "mu": 0}, {"c": "TCA-0082", "d": "NORTON LIJA HOJA 9X11 P600 CAJA C/50 P/AGUA", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "NOR 66261139360", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0083", "d": "NORTON LIJA HOJA 9X11 P500 CAJA C/50", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "NOR 66261139361", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0084", "d": "NORTON LIJA HOJA 9X11 P1000 CAJA C/50", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "NOR 66261139381", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0085", "d": "NORTON LIJA HOJA 9X11 P400 CAJA C/50", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "KK114F", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0086", "d": "NORTON LIJA HOJA 9X11 P180 CAJA C/50", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "84430", "ss": 1, "mo": 1, "mu": 0}, {"c": "TCA-0087", "d": "2'' 60 GRIT AO CLOTH TYPE 3 QC DISC 100/BX", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "MER 69957399709", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0088", "d": "ESPONJA REDONDA NEGRA 3''", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "ESPONJ-3", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0089", "d": "STRAIGHT CARTRIDGE ROLL STCR 3/4 X 1.5 X 1/4 G60", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "CARTRIDGE-PL11896", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0090", "d": "1/2 X 1-1/2 X 1/8 60G ZIRC", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "CR060057-2", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0091", "d": "1/2 x 1-1/2 x 1/4 grano 60 CARTRIDGE ROLL(PL16158) c/100 pcs", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "CARTRIDGE - PL16158", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0092", "d": "1/2 x 1-1/2 x 1/8 grif 60 CARTRIDGE ROLL MARRON C/100 PCS", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "CARTRIDGE-MARRON", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0093", "d": "1''x 1-1/2 x 1/4 grit 60 CARTRIDGE ROLL (PL30354) C/100 PCS", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "CARTRIDGE-PL30354", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0094", "d": "3/8 X .075 CARTRIDGE BAND GRIFT 60 #52275 C/1000 PCS", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "CARTRIDGE-BAND#52275", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0095", "d": "1/2 x 3/4 SPIRAL WOUND BAND", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "SPIRAL-WOUNDBAND", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0096", "d": "1/4 X 3/4 SPIRAL NO- LAP BAND GRIFT 60", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "SPIRAL-NO-LAPBAND", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0097", "d": "ESPONJA REDONDA BLANCA 3-1/2''", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "ESPONJ-3BCO", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0098", "d": "LIJA AGUA HOJA 9X11 P2500 CAJA C/50", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "LIJA2500-AGUA", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0099", "d": "Gesswein® Finishing Oil-Treated Stones - 5/32'' x 5/32'' x 4'', 120 Grit #4150510", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "KNIGHT", "pp": "Gess-Ston-120", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0100", "d": "Gesswein® Finishing Oil-Treated Stones - 5/32'' x 5/32'' x 4'', 180 Grit #4150518", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "KNIGHT", "pp": "Gess-Ston-180", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0101", "d": "Gesswein® Finishing Oil-Treated Stones - 5/32'' x 5/32'' x 4'', 220 Grit #4150520", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "KNIGHT", "pp": "Gess-Ston-220", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0102", "d": "Gesswein® Finishing Oil-Treated Stones - 5/32'' x 5/32'' x 4'', 320 Grit #4150530", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "KNIGHT", "pp": "Gess-Ston-320", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0103", "d": "Gesswein® Oil-Treated Stones - 5/32'' x 5/32'' x 4'', 400 Grit #4150540", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "KNIGHT", "pp": "Gess-Ston-400", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0104", "d": "Gesswein® Oil-Treated Stones - 5/32'' x 5/32'' x 4'', 600 Grit #4150560", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "KNIGHT", "pp": "Gess-Ston-600", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0105", "d": "Gesswein® Oil-Treated Stones - 5/32'' x 5/32'' x 4'', 800 Grit #4150561", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "Gess-Ston-800", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0106", "d": "Gesswein® Oil-Treated Stones - 5/32'' x 5/32'' x 4'', 1200 Grit #4150562", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "KNIGHT", "pp": "Gess-Ston-1200", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0107", "d": "LIJA ORBITAL 3-1/2 NORTON 66261136369 P320 C/100 PZAS", "u": "ROLLO", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "LIJAORBITAL3-1/2 -P320", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0108", "d": "Ruedas de Pulido de Lana", "u": "PAQ", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "RUEDA-PUL-LAN", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0109", "d": "Ruedas de Pulido Metalico", "u": "PAQ", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "RUEDA-PUL-MET", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0110", "d": "Ruedas de Pulido de Algodon", "u": "PAQ", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Amazon Mx", "pp": "RUEDA-PUL-ALG", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0111", "d": "2¨X 118 GRIT 150 SERIE TAJ BEL 507 BOX", "u": "CAJA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "KNIGHT", "pp": "LIJA-BAND-G150", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCA-0112", "d": "Grinding Bit for Metals, 1/8''", "u": "PZA", "k": "TCA", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Mcmaster-Carr", "pp": "BITS-1/8-#14", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCL-0001", "d": "WD-40 11oz", "u": "PZA", "k": "TCL", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "OASA Oxigeno y Acetileno S.A de C.V.", "pp": "", "ss": 30, "mo": 1, "mu": 1}, {"c": "TCL-0002", "d": "WD-40 GALON", "u": "PZA", "k": "TCL", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 6, "mo": 2, "mu": 2}, {"c": "TCS-0001", "d": "ELECTRODO P/ POWERMAX 45", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "ELEC-P45", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0002", "d": "NOZZLE P/ PLASMA P/ POWERMAX 45", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "NOZZ-P45", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0003", "d": "COPA DE ARRASTRE P/ PMX45", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "COP-P45", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0004", "d": "ALAMBRE SOLIDO", "u": "ROLLO", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "ALAM-S", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0005", "d": "APORTE DE ALUMINIO 3/32 X 36''", "u": "KG", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "APOR-A3/32", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0006", "d": "ESTAÑO PARA SOLDADURA 1MM 60/40", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "EST-60/40", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0007", "d": "RUEDA ESMERILADORA #224 DE 6''", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "RUED-ESMER", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0008", "d": "ANTORCHA PARA GAS BERNZOMATIC TS8000", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "ANTOR-BERN", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0009", "d": "TUNGSTENO PURPURA 5/32 X 7", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "TUNGS-5/32X7", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0010", "d": "TUNGSTENO GRIS 1/8", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "TUNGS-1/8", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0011", "d": "TUNGSTENO PURPURA 3/32 X 7", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "TUNGS-3/32X7", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0012", "d": "TUNGSTENO GRIS 1/16", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "TUNGS-1/16", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0013", "d": "SOLDADURA FRIA (J&B WELD)", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "SOLD-FRIAJ&B", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0014", "d": "1/2'' Gun Nozzle, Recessed (NOZZLE 1/2 P/PISTOLA)", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "NOZZ-PIST-1/2", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0015", "d": "Contact Tip Adapter: For M-Series Contact Tip Series (ADAPTADOR P/CONTACT TIP)", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "CONTACT-ADAP", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0016", "d": "Miller 169729 (ADAPTADOR P/NOZZLE)", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "NOZZ-ADAP", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0017", "d": "Contact Tip: M-Series, 0.035 in, 10 PK (CONTACT TIP P/PISTOLA)", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "CONTACT-PIST-0.035", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0018", "d": "Contact Tip: M-Series, 0.03 in, 10 PK", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0019", "d": "Guia conduit 194011", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCS-0020", "d": "ER70S-6 Welding Wire 0.035''-0.9MM", "u": "PZA", "k": "TCS", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "TCX-0033", "d": "internalDescription", "u": "PZA", "k": "TCX", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "locationMRO", "p": "", "pp": "", "ss": 0, "mo": 0, "mu": 0}, {"c": "U00-211", "d": "KNIFE BLADES FOR P.S. PREFORMER", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "", "pp": "", "ss": 4, "mo": 4, "mu": 1}, {"c": "V4441T05SN", "d": "WORCESTER VALVULA DE ESFERA 1''''", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "TUBERIAS Y VALVULAS DEL NOROESTE (Tuvanosa)", "pp": "", "ss": 2, "mo": 2, "mu": 1}, {"c": "Y752SDSR41A-P", "d": "TOSHIBA MOTOR RPM 3600 Y752SDSR41A-P", "u": "PZA", "k": "", "s": 0, "mn": 0, "rp": 0, "lt": 1, "cm": 0, "l": "", "p": "Radwell International", "pp": "", "ss": 3, "mo": 2, "mu": 1}];
+const PROVEEDORES=["Amazon Mx", "COSTCO WHOLESALE MEXICO", "Conair", "DESEPLAS", "Distribuidora de Componentes para Automatizacion (DICOA)", "Ebay, Inc.", "El Mayorista Mercado", "Electric motor wholesale", "Grainger Mexico", "Hydraulic Parts Source", "IND.SAFETY", "KNIGHT", "Knight Industrial de Mexico", "Maag Reduction , Inc", "Mcmaster-Carr", "Mercado Libre MX", "Moragas", "Nanotec", "OASA Oxigeno y Acetileno S.A de C.V.", "One Hydraulics", "Praxair Mexico S de RL de CV", "R3", "Radwell International", "SMART & FINAL", "SMC PNEUMATICS.COM", "TUBERIAS Y VALVULAS DEL NOROESTE (Tuvanosa)", "Uline Mexico"];
+const UBICACIONES=["2", "ALMACEN MP", "ALMACEN MP - NAVE 2", "ESTANTE BLANCO", "ESTANTE PAPELERIA", "EXT MRO", "JAULA QUIM. - NAVE 1", "MRO-01-A1", "MRO-01-A2", "MRO-01-A3", "MRO-01-B1", "MRO-01-B2", "MRO-01-B3", "MRO-01-C3", "MRO-01-D1", "MRO-01-D2", "MRO-01-D3", "MRO-01-E1", "MRO-01-E2", "MRO-01-E3", "MRO-01-F1", "MRO-01-F2", "MRO-01-F3", "MRO-02-A1", "MRO-02-A3", "MRO-02-B1", "MRO-02-C1", "MRO-02-C2", "MRO-02-C3", "MRO-02-D2", "MRO-02-D4", "MRO-02-E4", "MRO-02-F3", "MRO-02-F4", "PISO - AREA ROTOLINE", "RACK #8", "RACK #9", "locationMRO"];
+const UNIDADES=["BOLSA", "CAJA", "CUB", "KG", "MTS", "PAQ", "PAR", "PIES", "PZA", "ROLLO", "TIBOR", "TOTEM", "YDS"];
+</script>
+<script>
+const {createElement: h, useState, useEffect, useMemo, Fragment} = React;
+
+/* ================= catálogos operativos =================
+   OJO: estas listas son propuestas — el sheet original tiene las columnas
+   (Area, _Requisitor, _Project, #MAQ) pero Drive truncó los renglones con datos.
+   Confirmar con el usuario y sustituir por los valores reales.            */
+/* Departamentos y áreas de trabajo tal como están dados de alta en la planta
+   (mismos nombres y mismo orden que el menú del sistema del CNC).
+   Los de "Soporte y administración" siguen por confirmar con el usuario. */
+const AREAS_GRUPOS = [
+  {g:"Departamentos", a:["Intakes","Tanques","Evaps","HPs","Plásticos","Cortes","Lids","Polyurethane",
+    "Injection Molding","Rubber","Mezclado","Mangueras","CNC","Pliegues","Filtros","Nave 4"]},
+  {g:"Áreas de trabajo", a:["Escaneo","Recibo","Reparación de Moldes"]},
+  {g:"Naves", a:["Nave 1","Nave 2","Nave 3"]},
+  {g:"Soporte y administración", a:["Mantenimiento","Calidad","Laboratorio",
+    "SHMA (Seguridad e Higiene)","Ingeniería","Almacén MP","Embarques","Compras","Sistemas",
+    "Recursos Humanos","Limpieza","Oficinas"]}
+];
+const AREAS = AREAS_GRUPOS.reduce((acc,g)=>acc.concat(g.a),[]);
+const REQUISITORES = ["Fernando Morales","Roberto Silva","Mantenimiento","SHMA","Producción"];
+const PROYECTOS = ["Operación","Proyecto CNC","Mejora continua","Mantenimiento preventivo","5S"];
+const MOTIVOS = ["Consumo normal","Cambio programado","Rotura / falla","Preventivo","Proyecto","Devolución","Ajuste de inventario"];
+const TIPOS = {E:{l:"Entrada",p:"pill-ok",s:1},S:{l:"Salida",p:"pill-block",s:-1},A:{l:"Ajuste",p:"pill-pend",s:1}};
+const EST_REQ = {BORRADOR:"pill-mute",ENVIADA:"pill-pend",OC:"pill-run",RECIBIDA:"pill-ok",CANCELADA:"pill-block"};
+
+const LS = {items:"rm_mro_items_v1", movs:"rm_mro_movs_v1", reqs:"rm_mro_reqs_v1", cfg:"rm_mro_cfg_v1"};
+
+/* ================= utilidades ================= */
+const uid = () => Math.random().toString(36).slice(2,10);
+const nf  = n => (Number(n)||0).toLocaleString("es-MX");
+const nf1 = n => (Number(n)||0).toLocaleString("es-MX",{maximumFractionDigits:1});
+const hoy = () => new Date().toISOString().slice(0,10);
+const MESES = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+const fdate = s => { if(!s) return "—"; const d=new Date(String(s).length<=10 ? s+"T12:00:00" : s);
+  return d.getDate()+" "+MESES[d.getMonth()]+" "+String(d.getFullYear()).slice(2); };
+const mesKey = s => String(s).slice(0,7);
+const mesLbl = k => { const p=k.split("-"); return MESES[+p[1]-1]+" "+p[0].slice(2); };
+const load = (k,def) => { try{ const v=localStorage.getItem(k); return v?JSON.parse(v):def; }catch(e){ return def; } };
+const save = (k,v) => { try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} };
+const CLMAP = {}; CLASIF.forEach(c => CLMAP[c.i]=c);
+const clasFull = k => CLMAP[k] ? CLMAP[k].f+" / "+CLMAP[k].c+" / "+CLMAP[k].s : "—";
+const clasFam  = k => CLMAP[k] ? CLMAP[k].f : "Sin clasificar";
+const FAMILIAS = Array.from(new Set(CLASIF.map(c=>c.f))).sort();
+/* cada familia del catálogo lleva su propio color, para leer la tabla de un vistazo */
+const TONOS = [["--c1","--c1b"],["--c2","--c2b"],["--c3","--c3b"],["--c4","--c4b"],
+               ["--c5","--c5b"],["--c6","--c6b"],["--c7","--c7b"],["--c8","--c8b"]];
+function tonoFam(f){
+  const i = FAMILIAS.indexOf(f);
+  if(i < 0) return {background:"var(--surface-2)",color:"var(--muted)",borderColor:"var(--line-2)"};
+  const t = TONOS[i % TONOS.length];
+  return {background:"var("+t[1]+")", color:"var("+t[0]+")", borderColor:"var("+t[1]+")"};
+}
+
+/* consumo mensual real: promedio de salidas de los últimos N meses cerrados */
+function consumoMensual(movs, cod, meses){
+  const fin = new Date(); fin.setDate(1);
+  const ini = new Date(fin); ini.setMonth(ini.getMonth()-meses);
+  let tot=0;
+  movs.forEach(m=>{ if(m.c===cod && m.t==="S"){ const d=new Date(m.f+"T12:00:00");
+    if(d>=ini && d<fin) tot += Math.abs(m.q); } });
+  return tot/meses;
+}
+/* Techo de sensatez: en el sheet original hay mínimos y "min order qty" que vienen
+   en otra unidad (p.ej. 37,044 ROLLO). Si un parámetro pide más de un año de consumo
+   sobre el mínimo, se ignora y la parte se marca como dato dudoso. */
+function techo(it, cm){ return Math.max((it.mn||0), cm*12, 10) * 1.5; }
+function anomalias(it, cm){
+  const t = techo(it,cm), a = [];
+  if((it.s||0) < 0) a.push("stock negativo");
+  if(it.mo && it.mo > t) a.push("cant. mínima de orden fuera de escala");
+  if(it.mu > 1 && it.mu > t) a.push("múltiplo de compra fuera de escala");
+  if(it.mn > 0 && cm === 0 && it.mn > 500) a.push("mínimo alto sin consumo");
+  return a;
+}
+/* cantidad sugerida a ordenar: cubrir lead time + colchón, respetando mín y múltiplos */
+function sugerido(it, cm, colchon){
+  const t = techo(it,cm);
+  const objetivo = cm * ((Number(it.lt)||1) + colchon);
+  let s = Math.max(0, Math.ceil(objetivo - (it.s||0)));
+  if(it.mn && (it.s||0) < it.mn) s = Math.max(s, it.mn - (it.s||0));
+  if(s>0 && it.mo && it.mo<=t) s = Math.max(s, it.mo);
+  if(s>0 && it.mu>1 && it.mu<=t) s = Math.ceil(s/it.mu)*it.mu;
+  return s;
+}
+async function csvDownload(nombre, filas){
+  const esc = v => { const s = v==null?"":String(v);
+    return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const txt = "﻿"+filas.map(f=>f.map(esc).join(",")).join("\r\n");
+  let dl = null;
+  try{ dl = (window.claude && window.claude.use) ? await window.claude.use("downloads") : null; }catch(e){}
+  if(dl){ try{ await dl.save({filename:nombre, data:txt}); }catch(e){} return; }
+  const url = URL.createObjectURL(new Blob([txt],{type:"text/csv;charset=utf-8"}));
+  const a = document.createElement("a"); a.href=url; a.download=nombre; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+
+/* ================= almacén compartido =================
+   Tres modos, en este orden:
+   1. API REST  — si config.js define MRO_API_BASE (producción: Lambda + S3).
+   2. Artifact  — la base de datos que claude.ai le presta a la página publicada.
+   3. localStorage — respaldo: la página abierta como archivo, o sin backend todavía.
+      Ojo: en el modo 3 cada dispositivo ve SUS propios datos.                */
+const STORE = (function(){
+  let db = null, listo = false, modo = "local";
+  const API = (typeof window !== "undefined" && window.MRO_API_BASE)
+    ? String(window.MRO_API_BASE).replace(/\/+$/,"") : "";
+  const cache = {};
+  const lk = c => "rm_mro_db_"+c;
+  const todos = c => { if(!cache[c]) cache[c] = load(lk(c), {}); return cache[c]; };
+  const guardar = (c,o) => { cache[c] = o; save(lk(c), o); };
+  const lista = c => { const t=todos(c); return Object.keys(t).map(k=>t[k]); };
+  const subs = {};
+  const avisar = c => (subs[c]||[]).forEach(cb=>cb(lista(c)));
+
+  /* mismo contrato que las demás apps del portal: x-api-key + token de sesión */
+  async function pedir(path, method, body){
+    const opts = { method: method||"GET", headers: {} };
+    if(window.MRO_API_KEY) opts.headers["x-api-key"] = window.MRO_API_KEY;
+    let tok = ""; try{ tok = localStorage.getItem("cnc_id_token") || ""; }catch(e){}
+    if(tok) opts.headers["Authorization"] = "Bearer " + tok;
+    if(body){ opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
+    const r = await fetch(API + path, opts);
+    let d = {}; try{ d = await r.json(); }catch(e){}
+    if(!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+    return d;
+  }
+
+  return {
+    async init(){
+      if(API){ modo = "api"; listo = true; return true; }
+      try{ db = (window.claude && window.claude.use) ? await window.claude.use("db") : null; }
+      catch(e){ db = null; }
+      modo = db ? "artifact" : "local";
+      listo = true;
+      return !!db;
+    },
+    get compartido(){ return modo === "api" || modo === "artifact"; },
+    get modo(){ return modo; },
+    get iniciado(){ return listo; },
+
+    watch(c, cb){
+      if(modo === "api"){
+        /* sin websockets: se relee cada 12 s para que MRO vea las solicitudes nuevas */
+        let vivo = true;
+        const traer = () => pedir("/mro/"+c)
+          .then(d => { if(vivo) cb(Array.isArray(d) ? d : (d.items || [])); })
+          .catch(()=>{});
+        traer();
+        const t = setInterval(traer, 12000);
+        const alVolver = () => { if(document.visibilityState === "visible") traer(); };
+        document.addEventListener("visibilitychange", alVolver);
+        return ()=>{ vivo = false; clearInterval(t); document.removeEventListener("visibilitychange", alVolver); };
+      }
+      if(db){
+        try{
+          return db.collection(c).onSnapshot(
+            snap => cb(snap.docs.map(d=>Object.assign({}, d.data(), {id:d.id}))),
+            () => {});
+        }catch(e){ /* cae a local */ }
+      }
+      (subs[c] = subs[c]||[]).push(cb);
+      cb(lista(c));
+      return ()=>{ subs[c] = (subs[c]||[]).filter(f=>f!==cb); };
+    },
+
+    async put(c, id, obj){
+      const doc = Object.assign({}, obj, {id});
+      if(modo === "api"){
+        try{ await pedir("/mro/"+c+"/"+encodeURIComponent(id), "PUT", doc); return true; }
+        catch(e){ return false; }
+      }
+      if(db){ try{ await db.doc(c+"/"+id).set(doc); return true; }catch(e){ return false; } }
+      const t = todos(c); t[id] = doc; guardar(c,t); avisar(c); return true;
+    },
+
+    async del(c, id){
+      if(modo === "api"){
+        try{ await pedir("/mro/"+c+"/"+encodeURIComponent(id), "DELETE"); return true; }
+        catch(e){ return false; }
+      }
+      if(db){ try{ await db.doc(c+"/"+id).delete(); return true; }catch(e){ return false; } }
+      const t = todos(c); delete t[id]; guardar(c,t); avisar(c); return true;
+    }
+  };
+})();
+
+/* ================= solicitudes de material ================= */
+const EST_SOL = {
+  NUEVA:      {l:"Por revisar",          p:"pill-pend"},
+  EN_SURTIDO: {l:"Surtiendo",            p:"pill-run"},
+  SURTIDA:    {l:"Lista para recoger",   p:"pill-ok"},
+  RECOGIDA:   {l:"Recogida",             p:"pill-mute"},
+  CANCELADA:  {l:"Cancelada",            p:"pill-block"}
+};
+const URGENCIAS = ["Normal","Urgente — línea parada"];
+const AVISO_DEFAULT = "Tu material ya está surtido. Pasa por él a la ventanilla del almacén MRO.";
+const sello = (est, por, nota) => ({t:new Date().toISOString(), est, por, nota:nota||""});
+const fhora = s => { if(!s) return "—"; const d=new Date(s);
+  return fdate(s)+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); };
+
+/* ================= semilla ================= */
+function itemsIniciales(){
+  return SEED_ITEMS.map(o => Object.assign({}, o, {act:true}));
+}
+/* Historial de EJEMPLO. El sheet real no se pudo exportar completo, así que los
+   movimientos son simulados para poder ver reportes; el catálogo sí es real.
+   Los movimientos demo llevan dem:true y NO afectan el stock del catálogo.   */
+function movsDemo(items){
+  let s = 20260908;
+  const R = () => { s = (s*1664525+1013904223) >>> 0; return s/4294967296; };
+  const pick = a => a[Math.floor(R()*a.length)];
+  const cand = items.filter(i => (i.cm||0) > 0 || i.s > 0);
+  const movs = [];
+  const hoyD = new Date();
+  for(let d=240; d>=0; d--){
+    const day = new Date(hoyD); day.setDate(day.getDate()-d);
+    if(day.getDay()===0) continue;
+    const fecha = day.toISOString().slice(0,10);
+    const n = Math.floor(R()*4);
+    for(let j=0;j<n;j++){
+      const it = pick(cand); if(!it) continue;
+      const base = Math.max(1, Math.round((it.cm||2)/4));
+      movs.push({id:uid(), f:fecha, c:it.c, u:it.u, t:"S", q:-(1+Math.floor(R()*base)),
+        area:pick(AREAS), req:pick(REQUISITORES), proy:pick(PROYECTOS), maq:R()<.45?"MAQ "+(1+Math.floor(R()*12)):"",
+        mot:pick(MOTIVOS), oc:"", fac:"", nota:"", por:pick(REQUISITORES), dem:true});
+    }
+    if(R()<0.22){
+      const it = pick(cand); if(!it) continue;
+      movs.push({id:uid(), f:fecha, c:it.c, u:it.u, t:"E", q:1+Math.floor(R()*(it.mo||20)),
+        area:"Almacén MP", req:"", proy:"", maq:"", mot:"Recepción de compra",
+        oc:"OC-"+(10000+Math.floor(R()*8000)), fac:"F-"+(1000+Math.floor(R()*9000)), nota:"", por:"Almacén MRO", dem:true});
+    }
+  }
+  return movs.sort((a,b)=> a.f<b.f?1:-1);
+}
+
+/* ================= piezas de UI ================= */
+function Modal({title,sub,wide,narrow,onClose,children,actions}){
+  return h("div",{className:"modal-bg",onMouseDown:e=>{ if(e.target===e.currentTarget) onClose(); }},
+    h("div",{className:"modal"+(wide?" wide":"")+(narrow?" narrow":"")},
+      h("h3",null,title),
+      sub ? h("div",{className:"sub"},sub) : null,
+      children,
+      actions ? h("div",{className:"m-act"},actions) : null));
+}
+function Field({label,children,style}){
+  return h("div",{className:"field",style},h("label",{className:"lbl"},label),children);
+}
+function Sel({value,onChange,options,placeholder,allowEmpty}){
+  return h("select",{className:"form-control",value:value||"",onChange:e=>onChange(e.target.value)},
+    allowEmpty!==false ? h("option",{value:""},placeholder||"—") : null,
+    options.map(o => typeof o==="string" ? h("option",{key:o,value:o},o)
+      : h("option",{key:o.v,value:o.v},o.l)));
+}
+/* selector de área agrupado, para que la lista larga siga siendo navegable */
+function SelArea({value,onChange,placeholder,allowEmpty}){
+  return h("select",{className:"form-control",value:value||"",onChange:e=>onChange(e.target.value)},
+    allowEmpty!==false ? h("option",{value:""}, placeholder||"— Elige el área —") : null,
+    AREAS_GRUPOS.map(g=>h("optgroup",{key:g.g,label:g.g},
+      g.a.map(a=>h("option",{key:a,value:a},a)))));
+}
+function StockCell({it}){
+  const max = Math.max(it.s||0, it.mn||0, it.rp||0, 1);
+  const pct = Math.min(100, ((it.s||0)/max)*100);
+  const low = it.mn>0 && (it.s||0) < it.mn;
+  return h("div",{className:"stk"},
+    h("span",{className:"v"+(it.s<=0?" zero":(low?" low":""))}, nf(it.s)),
+    h("div",{className:"sbar",title:"Mín "+nf(it.mn)+" · ROP "+nf(it.rp)},
+      h("i",{style:{width:pct+"%",background:it.s<=0?"var(--crit)":(low?"#e8a33d":"var(--brand)")}}),
+      it.mn>0 ? h("span",{className:"mk",style:{left:Math.min(100,(it.mn/max)*100)+"%"}}) : null));
+}
+function BarChart({title,unit,rows,fmt,tono}){
+  const max = Math.max(1, ...rows.map(r=>r.v));
+  return h("div",{className:"chart-card"+(tono?" t"+tono:"")},
+    h("div",{className:"cc-head"},h("span",{className:"cc-t"},title),h("span",{className:"cc-u"},unit)),
+    rows.length===0 ? h("div",{className:"empty"},"Sin datos en el periodo")
+    : rows.map((r,i)=> h("div",{className:"brow",key:r.n+i},
+        h("div",{className:"brow-top"},
+          h("span",{className:"brow-name",title:r.n}, h("span",{className:"rank"},i+1), r.n),
+          h("span",{className:"brow-val"}, fmt?fmt(r.v):nf(r.v), r.sub?h("small",null,r.sub):null)),
+        h("div",{className:"btrack"},h("div",{className:"bfill",style:{width:(r.v/max*100)+"%"}})))));
+}
+function ColChart({title,unit,rows,fmt}){
+  const max = Math.max(1, ...rows.map(r=>r.v));
+  return h("div",{className:"chart-card"},
+    h("div",{className:"cc-head"},h("span",{className:"cc-t"},title),h("span",{className:"cc-u"},unit)),
+    h("div",{className:"cols"}, rows.map(r=>h("div",{className:"col",key:r.n},
+      h("span",{className:"cval"}, fmt?fmt(r.v):nf(r.v)),
+      h("div",{className:"cbar",style:{height:Math.max(3,(r.v/max)*130)+"px"}}),
+      h("span",{className:"clab"}, r.n)))));
+}
+
+/* ================= captura de movimiento ================= */
+function MovModal({tipo,item,items,onSave,onClose}){
+  const [c,setC]     = useState(item?item.c:"");
+  const [q,setQ]     = useState("");
+  const [f,setF]     = useState(hoy());
+  const [area,setArea]=useState(tipo==="E"?"Almacén MP":"");
+  const [req,setReq] = useState("");
+  const [proy,setProy]=useState("");
+  const [maq,setMaq] = useState("");
+  const [mot,setMot] = useState(tipo==="E"?"Recepción de compra":"Consumo normal");
+  const [oc,setOc]   = useState(""); const [fac,setFac]=useState("");
+  const [nota,setNota]=useState("");
+  const it = items.find(i=>i.c===c);
+  const cant = Math.abs(Number(q)||0);
+  const nuevo = it ? (tipo==="S" ? it.s-cant : tipo==="E" ? it.s+cant : cant) : 0;
+  const ok = it && (tipo==="A" ? q!=="" : cant>0);
+  const T = TIPOS[tipo];
+  return h(Modal,{title:T.l+" de almacén", sub: tipo==="S"?"Vale de salida — se descuenta del stock"
+      : tipo==="E"?"Recepción — suma al stock" : "Ajuste — fija el stock al valor contado",
+    onClose, actions:[
+      h("button",{key:"c",className:"btn",onClick:onClose},"Cancelar"),
+      h("button",{key:"s",className:"btn btn-primary",disabled:!ok,onClick:()=>onSave({
+        id:uid(), f, c, u:it.u, t:tipo,
+        q: tipo==="S" ? -cant : tipo==="E" ? cant : (cant - it.s),
+        area, req, proy, maq, mot, oc, fac, nota, por:req||"", sr:nuevo
+      })}, "Guardar "+T.l.toLowerCase())]},
+    h("div",{className:"grid2"},
+      h(Field,{label:"No. de parte"},
+        h("input",{className:"form-control mono",list:"dl-items",value:c,placeholder:"SEX-0001",
+          onChange:e=>setC(e.target.value.toUpperCase().trim())})),
+      h(Field,{label:"Fecha"},h("input",{type:"date",className:"form-control",value:f,onChange:e=>setF(e.target.value)}))),
+    it ? h("div",{className:"hint"}, h("b",null,it.c), " — ", it.d, h("br"),
+        "Unidad ", h("b",null,it.u), " · Ubicación ", h("b",null,it.l||"—"),
+        " · Stock actual ", h("b",null,nf(it.s)),
+        " → ", h("b",null,nf(nuevo)), nuevo<0 ? h("span",{style:{color:"var(--crit)"}}, " (queda en negativo)") : null)
+      : (c ? h("div",{className:"hint warn"},"No existe esa parte en el catálogo.") : null),
+    h("div",{className:"grid3"},
+      h(Field,{label:tipo==="A"?"Cantidad contada":"Cantidad ("+(it?it.u:"u")+")"},
+        h("input",{type:"number",className:"form-control",value:q,onChange:e=>setQ(e.target.value)})),
+      h(Field,{label:"Motivo"},h(Sel,{value:mot,onChange:setMot,options:MOTIVOS,allowEmpty:false})),
+      h(Field,{label:"Área"},h(SelArea,{value:area,onChange:setArea,placeholder:"— Área —"}))),
+    tipo==="S" ? h("div",{className:"grid3"},
+        h(Field,{label:"Requisitor"},h(Sel,{value:req,onChange:setReq,options:REQUISITORES,placeholder:"— Quién lo pide —"})),
+        h(Field,{label:"Proyecto"},h(Sel,{value:proy,onChange:setProy,options:PROYECTOS,placeholder:"— Proyecto —"})),
+        h(Field,{label:"# Máquina"},h("input",{className:"form-control",value:maq,placeholder:"MAQ 5",onChange:e=>setMaq(e.target.value)})))
+      : h("div",{className:"grid3"},
+        h(Field,{label:"Orden de compra"},h("input",{className:"form-control mono",value:oc,onChange:e=>setOc(e.target.value)})),
+        h(Field,{label:"Factura"},h("input",{className:"form-control mono",value:fac,onChange:e=>setFac(e.target.value)})),
+        h(Field,{label:"Recibió"},h(Sel,{value:req,onChange:setReq,options:REQUISITORES,placeholder:"— Quién recibe —"}))),
+    h(Field,{label:"Comentarios"},h("textarea",{className:"form-control",value:nota,onChange:e=>setNota(e.target.value)})));
+}
+
+/* ================= ficha de la parte ================= */
+function ItemModal({it,movs,onSave,onClose,onMov}){
+  const [ed,setEd]=useState(false);
+  const [d,setD]=useState(it);
+  const hist = movs.filter(m=>m.c===it.c).slice(0,40);
+  const cm = consumoMensual(movs,it.c,6);
+  const set=(k,v)=>setD(Object.assign({},d,{[k]:v}));
+  return h(Modal,{title:it.c, sub:it.d, wide:true, onClose, actions: ed
+    ? [h("button",{key:"c",className:"btn",onClick:()=>{setEd(false);setD(it);}},"Cancelar"),
+       h("button",{key:"s",className:"btn btn-primary",onClick:()=>{onSave(d);setEd(false);}},"Guardar cambios")]
+    : (onMov
+      ? [h("button",{key:"s",className:"btn",onClick:()=>onMov("S",it)},"Salida"),
+         h("button",{key:"e",className:"btn",onClick:()=>onMov("E",it)},"Entrada"),
+         h("button",{key:"a",className:"btn",onClick:()=>onMov("A",it)},"Ajuste"),
+         h("button",{key:"ed",className:"btn btn-primary",onClick:()=>setEd(true)},"Editar ficha")]
+      : [h("button",{key:"c",className:"btn",onClick:onClose},"Cerrar")])},
+    ed ? h("div",null,
+        h("div",{className:"grid2"},
+          h(Field,{label:"Descripción"},h("input",{className:"form-control",value:d.d,onChange:e=>set("d",e.target.value)})),
+          h(Field,{label:"Clasificación"},h(Sel,{value:d.k,onChange:v=>set("k",v),
+            options:CLASIF.map(c=>({v:c.i,l:c.i+" — "+c.f+"/"+c.c+"/"+c.s})),placeholder:"— Sin clasificar —"}))),
+        h("div",{className:"grid3"},
+          h(Field,{label:"Unidad"},h(Sel,{value:d.u,onChange:v=>set("u",v),options:UNIDADES,allowEmpty:false})),
+          h(Field,{label:"Ubicación MRO"},h("input",{className:"form-control",list:"dl-ubic",value:d.l,onChange:e=>set("l",e.target.value)})),
+          h(Field,{label:"Proveedor"},h("input",{className:"form-control",list:"dl-prov",value:d.p,onChange:e=>set("p",e.target.value)}))),
+        h("div",{className:"grid3"},
+          h(Field,{label:"Mínimo"},h("input",{type:"number",className:"form-control",value:d.mn,onChange:e=>set("mn",+e.target.value)})),
+          h(Field,{label:"Punto de reorden"},h("input",{type:"number",className:"form-control",value:d.rp,onChange:e=>set("rp",+e.target.value)})),
+          h(Field,{label:"Lead time (meses)"},h("input",{type:"number",step:"0.5",className:"form-control",value:d.lt,onChange:e=>set("lt",+e.target.value)}))),
+        h("div",{className:"grid3"},
+          h(Field,{label:"No. parte proveedor"},h("input",{className:"form-control mono",value:d.pp,onChange:e=>set("pp",e.target.value)})),
+          h(Field,{label:"Cant. mínima de orden"},h("input",{type:"number",className:"form-control",value:d.mo,onChange:e=>set("mo",+e.target.value)})),
+          h(Field,{label:"Múltiplo de compra"},h("input",{type:"number",className:"form-control",value:d.mu,onChange:e=>set("mu",+e.target.value)}))))
+      : h("div",null,
+        /* existencias, ubicación, costos y consumo son datos internos: sólo MRO */
+        h("div",{className:"doc-meta"},
+          h("div",null,h("span",{className:"doc-k"},"Unidad"),h("span",{className:"doc-v"},it.u)),
+          h("div",null,h("span",{className:"doc-k"},"Clasificación"),h("span",{className:"doc-v"},clasFull(it.k))),
+          onMov ? h("div",null,h("span",{className:"doc-k"},"Stock"),h("span",{className:"doc-v mono"},nf(it.s)+" "+it.u)) : null,
+          onMov ? h("div",null,h("span",{className:"doc-k"},"Mínimo / ROP"),h("span",{className:"doc-v mono"},nf(it.mn)+" / "+nf(it.rp))) : null,
+          onMov ? h("div",null,h("span",{className:"doc-k"},"Ubicación"),h("span",{className:"doc-v"},it.l||"—")) : null,
+          onMov ? h("div",null,h("span",{className:"doc-k"},"Lead time"),h("span",{className:"doc-v"},nf1(it.lt)+" mes(es)")) : null,
+          onMov ? h("div",null,h("span",{className:"doc-k"},"Consumo / mes"),h("span",{className:"doc-v mono"},nf1(cm||it.cm))) : null,
+          onMov ? h("div",null,h("span",{className:"doc-k"},"Proveedor"),h("span",{className:"doc-v"},it.p||"—")) : null,
+          onMov ? h("div",null,h("span",{className:"doc-k"},"P/N proveedor"),h("span",{className:"doc-v mono"},it.pp||"—")) : null),
+        !onMov ? h("div",{className:"hint"},"Para pedir esta parte, ciérrala y captúrala en tu solicitud: ",
+          h("b",{className:"mono"},it.c), ". MRO revisa la existencia.") : null,
+        onMov ? h("div",{className:"sec-t"},"Movimientos ",h("small",null,hist.length+" registros")) : null,
+        onMov ? h("div",{className:"tbl-scroll"},
+          hist.length===0 ? h("div",{className:"empty"},"Sin movimientos") :
+          h("table",{className:"tbl"},
+            h("thead",null,h("tr",null,["Fecha","Tipo","Cant.","Área","Requisitor","Máquina","OC / Factura","Motivo"].map(t=>h("th",{key:t},t)))),
+            h("tbody",null, hist.map(m=>h("tr",{key:m.id},
+              h("td",{className:"mono"},fdate(m.f)),
+              h("td",null,h("span",{className:"pill "+TIPOS[m.t].p},TIPOS[m.t].l)),
+              h("td",{className:"num mono"},(m.q>0?"+":"")+nf(m.q)),
+              h("td",null,m.area||"—"), h("td",null,m.req||"—"), h("td",null,m.maq||"—"),
+              h("td",{className:"mono"},[m.oc,m.fac].filter(Boolean).join(" / ")||"—"),
+              h("td",null,m.mot||"—")))))) : null));
+}
+
+/* ================= pestaña: Inventario ================= */
+function Inventario({items,movs,onOpen,onMov}){
+  const [q,setQ]=useState(""); const [fam,setFam]=useState(""); const [ubic,setUbic]=useState("");
+  const [prov,setProv]=useState(""); const [solo,setSolo]=useState("");
+  const [n,setN]=useState(60);
+  const list = useMemo(()=>{
+    const t=q.trim().toUpperCase();
+    return items.filter(i=>{
+      if(t && !(i.c.indexOf(t)>=0 || (i.d||"").toUpperCase().indexOf(t)>=0 || (i.pp||"").toUpperCase().indexOf(t)>=0)) return false;
+      if(fam && clasFam(i.k)!==fam) return false;
+      if(ubic && i.l!==ubic) return false;
+      if(prov && i.p!==prov) return false;
+      if(solo==="bajo" && !(i.mn>0 && i.s<i.mn)) return false;
+      if(solo==="cero" && i.s>0) return false;
+      if(solo==="sinclas" && i.k) return false;
+      return true;
+    });
+  },[items,q,fam,ubic,prov,solo]);
+  return h("div",null,
+    h("div",{className:"panel"},
+      h("div",{className:"toolbar"},
+        h("input",{className:"form-control grow",placeholder:"Buscar por No. de parte, descripción o P/N de proveedor…",
+          value:q,onChange:e=>{setQ(e.target.value);setN(60);}}),
+        h("div",{style:{width:170}},h(Sel,{value:fam,onChange:v=>{setFam(v);setN(60);},options:FAMILIAS,placeholder:"Todas las familias"})),
+        onMov ? h("div",{style:{width:160}},h(Sel,{value:ubic,onChange:v=>{setUbic(v);setN(60);},options:UBICACIONES,placeholder:"Toda ubicación"})) : null,
+        onMov ? h("div",{style:{width:190}},h(Sel,{value:prov,onChange:v=>{setProv(v);setN(60);},options:PROVEEDORES,placeholder:"Todo proveedor"})) : null,
+        onMov ? h("div",{className:"seg"},[["","Todo"],["bajo","Bajo mínimo"],["cero","En cero"],["sinclas","Sin clasificar"]].map(o=>
+          h("button",{key:o[0],className:solo===o[0]?"active":"",onClick:()=>{setSolo(o[0]);setN(60);}},o[1]))) : null,
+        onMov ? h("button",{className:"btn",onClick:()=>csvDownload("inventario_mro_"+hoy()+".csv",
+          [["No. Parte","Descripcion","Clasificacion","Unidad","Stock","Minimo","ROP","Ubicacion","Proveedor","PN Proveedor","LeadTime"]]
+          .concat(list.map(i=>[i.c,i.d,clasFull(i.k),i.u,i.s,i.mn,i.rp,i.l,i.p,i.pp,i.lt])))},"Exportar CSV") : null),
+      h("div",{className:"muted",style:{fontSize:13,marginBottom:10}},
+        nf(list.length)+" de "+nf(items.length)+" partes"),
+      h("div",{className:"tbl-scroll"},
+        h("table",{className:"tbl"},
+          h("thead",null,h("tr",null,
+            ["No. parte","Descripción","Clasificación","U"].map(t=>h("th",{key:t},t)),
+            onMov ? h("th",null,"Ubicación") : null,
+            onMov ? h("th",null,"Proveedor") : null,
+            onMov ? h("th",{className:"num"},"Stock") : null,
+            onMov ? h("th",{className:"num"},"Mín") : null,
+            onMov ? h("th",null,"") : null)),
+          h("tbody",null, list.slice(0,n).map(i=>h("tr",{key:i.c,className:"row-click",onClick:()=>onOpen(i)},
+            h("td",{className:"mono",style:{fontWeight:700}},i.c),
+            h("td",{style:{maxWidth:340,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},title:i.d},i.d),
+            h("td",null, i.k ? h("span",{className:"pill",title:clasFull(i.k),style:tonoFam(clasFam(i.k))},clasFam(i.k))
+              : h("span",{className:"muted"},"—")),
+            h("td",{className:"muted"},i.u),
+            onMov ? h("td",{className:"mono",style:{fontSize:12.5}},i.l||"—") : null,
+            onMov ? h("td",{style:{maxWidth:170,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},title:i.p},i.p||"—") : null,
+            onMov ? h("td",{className:"num"},h(StockCell,{it:i})) : null,
+            onMov ? h("td",{className:"num mono muted"},nf(i.mn)) : null,
+            onMov ? h("td",{style:{whiteSpace:"nowrap"},onClick:e=>e.stopPropagation()},
+              h("button",{className:"btn btn-sm btn-icon",title:"Registrar salida",onClick:()=>onMov("S",i)},"−"),
+              " ",
+              h("button",{className:"btn btn-sm btn-icon",title:"Registrar entrada",onClick:()=>onMov("E",i)},"+")) : null)))),
+        list.length>n ? h("div",{style:{textAlign:"center",padding:14}},
+          h("button",{className:"btn",onClick:()=>setN(n+100)},"Ver más ("+nf(list.length-n)+" restantes)")) : null,
+        list.length===0 ? h("div",{className:"empty"},"Ninguna parte coincide con el filtro") : null)));
+}
+
+/* ================= pestaña: Movimientos ================= */
+function Movimientos({movs,items,onMov,onDel}){
+  const [q,setQ]=useState(""); const [t,setT]=useState(""); const [area,setArea]=useState("");
+  const [n,setN]=useState(50);
+  const idx={}; items.forEach(i=>idx[i.c]=i);
+  const list = useMemo(()=>{
+    const s=q.trim().toUpperCase();
+    return movs.filter(m=>{
+      if(t && m.t!==t) return false;
+      if(area && m.area!==area) return false;
+      if(s){ const it=idx[m.c];
+        if(!(m.c.indexOf(s)>=0 || (it&&(it.d||"").toUpperCase().indexOf(s)>=0)
+          || (m.req||"").toUpperCase().indexOf(s)>=0 || (m.oc||"").toUpperCase().indexOf(s)>=0
+          || (m.maq||"").toUpperCase().indexOf(s)>=0)) return false; }
+      return true;
+    });
+  },[movs,q,t,area]);
+  return h("div",{className:"panel"},
+    h("div",{className:"toolbar"},
+      h("input",{className:"form-control grow",placeholder:"Buscar por parte, requisitor, OC o máquina…",value:q,onChange:e=>{setQ(e.target.value);setN(50);}}),
+      h("div",{className:"seg"},[["","Todos"],["S","Salidas"],["E","Entradas"],["A","Ajustes"]].map(o=>
+        h("button",{key:o[0],className:t===o[0]?"active":"",onClick:()=>{setT(o[0]);setN(50);}},o[1]))),
+      h("div",{style:{width:170}},h(SelArea,{value:area,onChange:setArea,placeholder:"Toda área"})),
+      h("button",{className:"btn btn-primary",onClick:()=>onMov("S")},"Salida"),
+      h("button",{className:"btn",onClick:()=>onMov("E")},"Entrada"),
+      h("button",{className:"btn",onClick:()=>onMov("A")},"Ajuste"),
+      h("button",{className:"btn",onClick:()=>csvDownload("movimientos_mro_"+hoy()+".csv",
+        [["Fecha","No. Parte","Descripcion","Tipo","Cantidad","Unidad","Area","Requisitor","Proyecto","Maquina","OC","Factura","Motivo"]]
+        .concat(list.map(m=>[m.f,m.c,(idx[m.c]||{}).d||"",TIPOS[m.t].l,m.q,m.u,m.area,m.req,m.proy,m.maq,m.oc,m.fac,m.mot])))},"Exportar CSV")),
+    h("div",{className:"muted",style:{fontSize:13,marginBottom:10}},nf(list.length)+" movimientos"),
+    h("div",{className:"tbl-scroll"},
+      h("table",{className:"tbl"},
+        h("thead",null,h("tr",null,["Fecha","No. parte","Descripción","Tipo"].map(x=>h("th",{key:x},x)),
+          h("th",{className:"num"},"Cant."),
+          ["Área","Requisitor","Máquina","OC / Factura","Motivo",""].map(x=>h("th",{key:x},x)))),
+        h("tbody",null, list.slice(0,n).map(m=>h("tr",{key:m.id},
+          h("td",{className:"mono"},fdate(m.f)),
+          h("td",{className:"mono",style:{fontWeight:700}},m.c),
+          h("td",{style:{maxWidth:280,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},(idx[m.c]||{}).d||"—"),
+          h("td",null,h("span",{className:"pill "+TIPOS[m.t].p},TIPOS[m.t].l), m.dem?h("span",{className:"pill pill-mute",style:{marginLeft:5}},"demo"):null),
+          h("td",{className:"num mono",style:{fontWeight:700,color:m.q<0?"var(--crit)":"var(--ok)"}},(m.q>0?"+":"")+nf(m.q)),
+          h("td",null,m.area||"—"), h("td",null,m.req||"—"), h("td",null,m.maq||"—"),
+          h("td",{className:"mono",style:{fontSize:12.5}},[m.oc,m.fac].filter(Boolean).join(" / ")||"—"),
+          h("td",{className:"muted",style:{fontSize:12.5}},m.mot||"—"),
+          h("td",null, m.dem?null:h("button",{className:"btn btn-sm btn-danger",title:"Cancelar movimiento",onClick:()=>onDel(m)},"✕")))))),
+      list.length>n ? h("div",{style:{textAlign:"center",padding:14}},
+        h("button",{className:"btn",onClick:()=>setN(n+100)},"Ver más")) : null,
+      list.length===0 ? h("div",{className:"empty"},"Sin movimientos") : null));
+}
+
+/* ================= pestaña: Compras ================= */
+function Compras({items,movs,reqs,onCrear,onOpenReq}){
+  const [colchon,setColchon]=useState(2);
+  const [prov,setProv]=useState("");
+  const [sel,setSel]=useState({});
+  const filas = useMemo(()=>{
+    return items.map(i=>{
+      const cm = consumoMensual(movs,i.c,6) || i.cm || 0;
+      return {it:i, cm, sug:sugerido(i,cm,colchon), an:anomalias(i,cm)};
+    }).filter(r=>r.sug>0 && (!prov || r.it.p===prov))
+      .sort((a,b)=> (b.cm*b.sug) - (a.cm*a.sug));
+  },[items,movs,colchon,prov]);
+  const marcadas = filas.filter(r=>sel[r.it.c]);
+  const porProv = {};
+  marcadas.forEach(r=>{ const p=r.it.p||"Sin proveedor"; (porProv[p]=porProv[p]||[]).push(r); });
+  return h("div",null,
+    h("div",{className:"panel"},
+      h("div",{className:"sec-t"},"Sugerido de compra ",
+        h("small",null,"cubre lead time + colchón, respeta mínimo y múltiplo de compra")),
+      h("div",{className:"toolbar"},
+        h("span",{className:"lbl",style:{margin:0}},"Colchón"),
+        h("div",{className:"seg"},[1,2,3,4].map(v=>h("button",{key:v,className:colchon===v?"active":"",onClick:()=>setColchon(v)},v+" mes"+(v>1?"es":"")))),
+        h("div",{style:{width:220}},h(Sel,{value:prov,onChange:setProv,options:PROVEEDORES,placeholder:"Todo proveedor"})),
+        h("div",{className:"grow"}),
+        h("button",{className:"btn btn-primary",disabled:marcadas.length===0,
+          onClick:()=>{ onCrear(porProv); setSel({}); }},
+          "Generar requisición"+(marcadas.length?" ("+marcadas.length+")":"")),
+        h("button",{className:"btn",onClick:()=>csvDownload("sugerido_compra_"+hoy()+".csv",
+          [["No. Parte","Descripcion","Unidad","Stock","Minimo","Consumo/mes","LeadTime","Sugerido","Proveedor","PN Proveedor"]]
+          .concat(filas.map(r=>[r.it.c,r.it.d,r.it.u,r.it.s,r.it.mn,nf1(r.cm),r.it.lt,r.sug,r.it.p,r.it.pp])))},"Exportar CSV")),
+      h("div",{className:"tbl-scroll"},
+        h("table",{className:"tbl"},
+          h("thead",null,h("tr",null, h("th",null,""),
+            ["No. parte","Descripción","Proveedor"].map(t=>h("th",{key:t},t)),
+            ["Stock","Mín","Cons/mes","Lead","Sugerido"].map(t=>h("th",{key:t,className:"num"},t)))),
+          h("tbody",null, filas.slice(0,120).map(r=>h("tr",{key:r.it.c},
+            h("td",null,h("input",{type:"checkbox",className:"chk",checked:!!sel[r.it.c],
+              onChange:e=>setSel(Object.assign({},sel,{[r.it.c]:e.target.checked}))})),
+            h("td",{className:"mono",style:{fontWeight:700}},r.it.c,
+              r.an.length ? h("span",{title:"Dato dudoso: "+r.an.join("; "),style:{marginLeft:6,cursor:"help",color:"var(--warn)",fontWeight:700}},"!") : null),
+            h("td",{style:{maxWidth:320,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},title:r.it.d},r.it.d),
+            h("td",{style:{maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},r.it.p||h("span",{className:"muted"},"sin asignar")),
+            h("td",{className:"num mono",style:{color:r.it.s<=0?"var(--crit)":""}},nf(r.it.s)),
+            h("td",{className:"num mono muted"},nf(r.it.mn)),
+            h("td",{className:"num mono"},nf1(r.cm)),
+            h("td",{className:"num mono muted"},nf1(r.it.lt)),
+            h("td",{className:"num mono",style:{fontWeight:800}},nf(r.sug)+" "+r.it.u))))),
+        filas.length===0 ? h("div",{className:"empty"},"Nada por ordenar con este colchón") : null)),
+    h("div",{className:"panel"},
+      h("div",{className:"sec-t"},"Requisiciones de compra ",h("small",null,reqs.length+" en total")),
+      reqs.length===0 ? h("div",{className:"empty"},"Todavía no generas requisiciones. Marca partes arriba y presiona «Generar requisición».")
+      : h("div",{className:"tbl-scroll"},
+        h("table",{className:"tbl"},
+          h("thead",null,h("tr",null,["Folio","Fecha","Proveedor","Renglones","Piezas","Estado","OC",""].map(t=>h("th",{key:t},t)))),
+          h("tbody",null, reqs.map(r=>h("tr",{key:r.id,className:"row-click",onClick:()=>onOpenReq(r)},
+            h("td",{className:"mono",style:{fontWeight:700}},r.folio),
+            h("td",{className:"mono"},fdate(r.f)),
+            h("td",null,r.prov),
+            h("td",{className:"num mono"},r.lin.length),
+            h("td",{className:"num mono"},nf(r.lin.reduce((a,l)=>a+l.q,0))),
+            h("td",null,h("span",{className:"pill "+EST_REQ[r.est]},r.est)),
+            h("td",{className:"mono"},r.oc||"—"),
+            h("td",null,h("button",{className:"btn btn-sm"},"Abrir")))))))));
+}
+
+function ReqModal({req,items,onUpd,onRecibir,onClose}){
+  const idx={}; items.forEach(i=>idx[i.c]=i);
+  const [oc,setOc]=useState(req.oc||"");
+  const [lin,setLin]=useState(req.lin.map(l=>Object.assign({},l)));
+  const acts=[h("button",{key:"c",className:"btn",onClick:onClose},"Cerrar")];
+  if(req.est==="BORRADOR") acts.push(h("button",{key:"e",className:"btn btn-primary",
+    onClick:()=>onUpd(Object.assign({},req,{est:"ENVIADA",lin}))},"Marcar como enviada"));
+  if(req.est==="ENVIADA") acts.push(h("button",{key:"o",className:"btn btn-primary",disabled:!oc.trim(),
+    onClick:()=>onUpd(Object.assign({},req,{est:"OC",oc:oc.trim(),lin}))},"Registrar OC"));
+  if(req.est==="OC") acts.push(h("button",{key:"r",className:"btn btn-ok",
+    onClick:()=>onRecibir(Object.assign({},req,{lin}))},"Recibir mercancía"));
+  if(req.est!=="RECIBIDA" && req.est!=="CANCELADA") acts.unshift(h("button",{key:"x",className:"btn btn-danger",
+    onClick:()=>onUpd(Object.assign({},req,{est:"CANCELADA"}))},"Cancelar requisición"));
+  const setQ=(i,v)=>setLin(lin.map((l,j)=> j===i ? Object.assign({},l,{q:Math.max(0,+v||0)}) : l));
+  return h(Modal,{title:req.folio, sub:req.prov, wide:true, onClose, actions:acts},
+    h("div",{className:"doc-meta"},
+      h("div",null,h("span",{className:"doc-k"},"Fecha"),h("span",{className:"doc-v mono"},fdate(req.f))),
+      h("div",null,h("span",{className:"doc-k"},"Estado"),h("span",{className:"doc-v"},h("span",{className:"pill "+EST_REQ[req.est]},req.est))),
+      h("div",null,h("span",{className:"doc-k"},"Renglones"),h("span",{className:"doc-v mono"},lin.length)),
+      h("div",null,h("span",{className:"doc-k"},"Orden de compra"),
+        req.est==="ENVIADA" ? h("input",{className:"form-control mono",value:oc,placeholder:"OC-12345",onChange:e=>setOc(e.target.value)})
+          : h("span",{className:"doc-v mono"},req.oc||"—"))),
+    h("div",{className:"tbl-scroll"},
+      h("table",{className:"tbl"},
+        h("thead",null,h("tr",null,["No. parte","Descripción","P/N proveedor","Ubicación"].map(t=>h("th",{key:t},t)),
+          h("th",{className:"num"},"Stock"), h("th",{className:"num"},"Cantidad"))),
+        h("tbody",null, lin.map((l,i)=>{ const it=idx[l.c]||{};
+          return h("tr",{key:l.c},
+            h("td",{className:"mono",style:{fontWeight:700}},l.c),
+            h("td",{style:{maxWidth:330,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},title:it.d},it.d||"—"),
+            h("td",{className:"mono"},it.pp||"—"),
+            h("td",{className:"mono",style:{fontSize:12.5}},it.l||"—"),
+            h("td",{className:"num mono"},nf(it.s)),
+            h("td",{className:"num"}, (req.est==="BORRADOR"||req.est==="ENVIADA")
+              ? h("input",{type:"number",className:"form-control mono",style:{width:110,textAlign:"right"},
+                  value:l.q,onChange:e=>setQ(i,e.target.value)})
+              : h("span",{className:"mono",style:{fontWeight:800}},nf(l.q)+" "+(it.u||"")))); })))),
+    req.est==="OC" ? h("div",{className:"hint",style:{marginTop:14}},
+      "Al recibir se generan las entradas al almacén con esta OC y se suma el stock de cada parte.") : null);
+}
+
+/* ================= identidad de quien usa la página ================= */
+function IdentidadModal({yo,onSave,onClose}){
+  const [nombre,setNombre] = useState(yo?yo.nombre:"");
+  const [area,setArea]     = useState(yo?yo.area:"");
+  const [rol,setRol]       = useState(yo?yo.rol:"SOL");
+  const ok = nombre.trim() && area;
+  return h(Modal,{title:"¿Quién eres?", sub:"Se guarda en este dispositivo y firma tus solicitudes y movimientos.",
+    narrow:true, onClose: yo?onClose:()=>{}, actions:[
+      yo ? h("button",{key:"c",className:"btn",onClick:onClose},"Cancelar") : null,
+      h("button",{key:"s",className:"btn btn-primary",disabled:!ok,
+        onClick:()=>onSave({nombre:nombre.trim(),area,rol})},"Entrar")]},
+    h(Field,{label:"Nombre"},h("input",{className:"form-control",value:nombre,autoFocus:true,
+      placeholder:"Nombre y apellido",onChange:e=>setNombre(e.target.value)})),
+    h(Field,{label:"Área"},h(SelArea,{value:area,onChange:setArea,placeholder:"— Elige tu área —"})),
+    h(Field,{label:"¿Qué haces aquí?"},
+      h("div",{className:"seg",style:{width:"100%"}},
+        h("button",{className:rol==="SOL"?"active":"",style:{flex:1},onClick:()=>setRol("SOL")},"Pido material"),
+        h("button",{className:rol==="MRO"?"active":"",style:{flex:1},onClick:()=>setRol("MRO")},"Trabajo en MRO"))));
+}
+
+/* ================= nueva solicitud (la captura el área) ================= */
+function NuevaSolicitudModal({items,yo,onSave,onClose}){
+  const [area,setArea]   = useState(yo.area||"");
+  const [lider,setLider] = useState("");
+  const [lin,setLin]     = useState([{c:"",q:"",obs:""}]);
+  const [urg,setUrg]     = useState(URGENCIAS[0]);
+  const [nota,setNota]   = useState("");
+  const idx={}; items.forEach(i=>idx[i.c]=i);
+  const set = (i,k,v) => setLin(lin.map((l,j)=> j===i ? Object.assign({},l,{[k]:v}) : l));
+  const listas = lin.filter(l=>idx[l.c] && Number(l.q)>0);
+  const urgente = urg !== URGENCIAS[0];
+  const falta = [!area?"el área":null, !lider.trim()?"el líder":null,
+                 listas.length===0?"al menos un material del catálogo":null].filter(Boolean);
+  const puede = falta.length===0;
+  return h(Modal,{title:"Nueva solicitud de material", sub:"Solicita "+yo.nombre,
+    wide:true, onClose, actions:[
+      h("button",{key:"c",className:"btn",onClick:onClose},"Cancelar"),
+      h("button",{key:"s",className:"btn btn-primary",disabled:!puede,
+        onClick:()=>onSave({
+          id:uid(), f:new Date().toISOString(),
+          sol:{nombre:yo.nombre, area:area}, lider:lider.trim(),
+          urg, nota, est:"NUEVA",
+          lin: listas.map(l=>({c:l.c, q:Number(l.q), u:idx[l.c].u, qs:0, obs:l.obs||""})),
+          aviso:null, hist:[sello("NUEVA", yo.nombre, "")]
+        })}, "Enviar a MRO"+(listas.length?" ("+listas.length+")":""))]},
+    h("div",{className:"grid3"},
+      h(Field,{label:"Área que lo necesita"},
+        h(SelArea,{value:area,onChange:setArea,placeholder:"— Elige el área —"})),
+      h(Field,{label:"Líder"},
+        h("input",{className:"form-control",list:"dl-lider",value:lider,placeholder:"Nombre del líder",
+          onChange:e=>setLider(e.target.value)})),
+      h(Field,{label:"Urgencia"},h(Sel,{value:urg,onChange:setUrg,options:URGENCIAS,allowEmpty:false}))),
+    h("div",{className:"sec-t",style:{marginTop:6}},"Material del catálogo MRO ",
+      h("small",null,"la cantidad va en la unidad de cada producto")),
+    lin.map((l,i)=>{ const it=idx[l.c];
+      return h("div",{key:i,style:{marginBottom:10}},
+        h("div",{style:{display:"flex",gap:10,alignItems:"flex-start",flexWrap:"wrap"}},
+          h("input",{className:"form-control mono",list:"dl-items",value:l.c,placeholder:"No. de parte",
+            style:{flex:"1 1 180px"},onChange:e=>set(i,"c",e.target.value.toUpperCase().trim())}),
+          h("div",{style:{position:"relative",width:132}},
+            h("input",{type:"number",min:"1",className:"form-control",value:l.q,placeholder:"Cant.",
+              style:{paddingRight:56},onChange:e=>set(i,"q",e.target.value)}),
+            h("span",{style:{position:"absolute",right:11,top:10,fontSize:11.5,fontWeight:800,
+              letterSpacing:".04em",color:it?"var(--brand)":"var(--muted)"}}, it?it.u:"—")),
+          h("input",{className:"form-control",value:l.obs,placeholder:"Para qué / detalle (opcional)",
+            style:{flex:"1 1 190px"},onChange:e=>set(i,"obs",e.target.value)}),
+          h("button",{className:"btn btn-sm btn-danger btn-icon",title:"Quitar renglón",disabled:lin.length===1,
+            onClick:()=>setLin(lin.filter((x,j)=>j!==i))},"✕")),
+        it ? h("div",{className:"muted",style:{fontSize:12.5,padding:"4px 2px"}},
+              it.d+" · se pide por "+it.u)
+          : (l.c ? h("div",{style:{fontSize:12.5,padding:"4px 2px",color:"var(--warn)"}},
+              "No encontré esa parte — revisa el número o descríbela en el comentario") : null));
+    }),
+    h("button",{className:"btn btn-sm",onClick:()=>setLin(lin.concat([{c:"",q:"",obs:""}]))},"Agregar renglón"),
+    h(Field,{label:urgente ? "¿Qué línea o máquina está detenida?" : "Comentarios (sólo si es urgente)",
+      style:{marginTop:14}},
+      h("textarea",{className:"form-control",value:nota,
+        placeholder: urgente ? "Di qué línea o máquina está parada para que MRO le dé prioridad"
+                             : "Déjalo vacío si no es urgente",
+        style: urgente ? {borderColor:"var(--crit-line)",background:"var(--crit-bg)"} : null,
+        onChange:e=>setNota(e.target.value)})),
+    falta.length ? h("div",{className:"hint warn"},"Falta "+falta.join(", ")+".") : null);
+}
+
+/* ================= detalle: MRO revisa, surte y avisa ================= */
+function SolicitudDetalle({sol,items,yo,onUpd,onSurtir,onClose}){
+  const idx={}; items.forEach(i=>idx[i.c]=i);
+  const esMRO = yo.rol==="MRO";
+  const [lin,setLin] = useState(sol.lin.map(l=>Object.assign({},l, (l.qs||sol.est==="SURTIDA"||sol.est==="RECOGIDA")?{}:{qs:l.q})));
+  const [msg,setMsg] = useState(AVISO_DEFAULT);
+  const E = EST_SOL[sol.est];
+  const surtida = sol.est==="SURTIDA" || sol.est==="RECOGIDA";
+  const editable = esMRO && (sol.est==="NUEVA" || sol.est==="EN_SURTIDO");
+  const guarda = (est, extra) => onUpd(Object.assign({}, sol, {lin, est}, extra||{},
+    {hist:(sol.hist||[]).concat([sello(est, yo.nombre, "")])}));
+  const acts = [h("button",{key:"c",className:"btn",onClick:onClose},"Cerrar")];
+  if(esMRO){
+    if(!surtida && sol.est!=="CANCELADA") acts.unshift(h("button",{key:"x",className:"btn btn-danger",
+      onClick:()=>guarda("CANCELADA")},"Cancelar solicitud"));
+    if(sol.est==="NUEVA") acts.push(h("button",{key:"t",className:"btn",
+      onClick:()=>guarda("EN_SURTIDO")},"Estoy surtiendo"));
+    if(sol.est==="NUEVA"||sol.est==="EN_SURTIDO") acts.push(h("button",{key:"l",className:"btn btn-primary",
+      disabled: lin.every(l=>Number(l.qs)<=0),
+      onClick:()=>onSurtir(Object.assign({},sol,{lin}), msg.trim()||AVISO_DEFAULT)},
+      "Surtida — avisar y descontar"));
+    if(sol.est==="SURTIDA") acts.push(h("button",{key:"r",className:"btn btn-ok",
+      onClick:()=>guarda("RECOGIDA")},"Ya pasaron por ella"));
+  } else if(sol.est==="SURTIDA" && sol.sol.nombre===yo.nombre){
+    acts.push(h("button",{key:"ok",className:"btn btn-ok",
+      onClick:()=>guarda("RECOGIDA")},"Confirmar que ya la recibí"));
+  }
+  const total = lin.reduce((a,l)=>a+Number(l.qs||0),0);
+  return h(Modal,{title:"Solicitud "+(sol.folio||""), sub:"Solicita "+sol.sol.nombre+" · "+sol.sol.area,
+    wide:true, onClose, actions:acts},
+    h("div",{className:"doc-meta"},
+      h("div",null,h("span",{className:"doc-k"},"Estado"),h("span",{className:"doc-v"},h("span",{className:"pill "+E.p},E.l))),
+      h("div",null,h("span",{className:"doc-k"},"Solicitada"),h("span",{className:"doc-v mono"},fhora(sol.f))),
+      h("div",null,h("span",{className:"doc-k"},"Líder"),h("span",{className:"doc-v"},sol.lider||sol.sup||"—")),
+      h("div",null,h("span",{className:"doc-k"},"Urgencia"),h("span",{className:"doc-v"},
+        sol.urg && sol.urg!==URGENCIAS[0] ? h("span",{className:"pill pill-block"},sol.urg) : "Normal"))),
+    sol.nota ? h("div",{className:"hint"+(sol.urg&&sol.urg!==URGENCIAS[0]?" warn":"")},
+      h("b",null, sol.urg&&sol.urg!==URGENCIAS[0] ? "Línea o máquina detenida — " : "Comentario — "), sol.nota) : null,
+    sol.aviso ? h("div",{className:"hint",style:{background:"var(--ok-bg)",borderColor:"var(--ok-line)",color:"var(--ok)"}},
+        h("b",null,sol.aviso.msg), h("br"), "Surtió "+sol.aviso.por+" el "+fhora(sol.aviso.t)+
+        " · ya se descontó del inventario") : null,
+    h("div",{className:"tbl-scroll"},
+      h("table",{className:"tbl"},
+        h("thead",null,h("tr",null,["No. parte","Descripción"].map(t=>h("th",{key:t},t)),
+          esMRO ? h("th",null,"Ubicación") : null,
+          esMRO ? h("th",{className:"num"},"Existencia") : null,
+          ["Pedido","Surtido"].map(t=>h("th",{key:t,className:"num"},t)),h("th",null,"Detalle"))),
+        h("tbody",null, lin.map((l,i)=>{ const it=idx[l.c]||{}; const u=l.u||it.u||"";
+          return h("tr",{key:l.c+i},
+            h("td",{className:"mono",style:{fontWeight:700}},l.c),
+            h("td",{style:{maxWidth:280,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},title:it.d},it.d||"—"),
+            esMRO ? h("td",{className:"mono",style:{fontSize:12.5}},it.l||"—") : null,
+            esMRO ? h("td",{className:"num mono",style:{color:(it.s||0)<=0?"var(--crit)":""}},nf(it.s)+" "+u) : null,
+            h("td",{className:"num mono",style:{fontWeight:700}},nf(l.q)+" "+u),
+            h("td",{className:"num"}, editable
+              ? h("div",{style:{position:"relative",width:118,marginLeft:"auto"}},
+                  h("input",{type:"number",min:"0",className:"form-control mono",
+                    style:{textAlign:"right",paddingRight:48},value:l.qs,
+                    onChange:e=>setLin(lin.map((x,j)=> j===i ? Object.assign({},x,{qs:Math.max(0,+e.target.value||0)}) : x))}),
+                  h("span",{style:{position:"absolute",right:10,top:10,fontSize:11,fontWeight:800,color:"var(--muted)"}},u))
+              : h("span",{className:"mono",style:{fontWeight:800,
+                  color:Number(l.qs)<Number(l.q)?"var(--warn)":"var(--ok)"}},nf(l.qs)+" "+u)),
+            h("td",{className:"muted",style:{fontSize:12.5}},l.obs||"—")); })))),
+    editable ? h("div",null,
+        lin.some(l=>Number(l.qs)<Number(l.q)) ? h("div",{className:"hint warn",style:{marginTop:14}},
+          "Vas a surtir menos de lo pedido en algún renglón. Se descuenta sólo lo que surtas y el solicitante lo verá.") : null,
+        h(Field,{label:"Mensaje del aviso",style:{marginTop:14}},
+          h("input",{className:"form-control",value:msg,onChange:e=>setMsg(e.target.value)})),
+        h("div",{className:"muted",style:{fontSize:12.5,marginTop:-4}},
+          "Al marcarla surtida se descuentan "+nf(total)+" pieza(s) del inventario a nombre de "+sol.sol.nombre+" ("+sol.sol.area+").")) : null,
+    (sol.hist||[]).length ? h("div",{style:{marginTop:16}},
+      h("div",{className:"sec-t"},"Seguimiento"),
+      (sol.hist||[]).slice().reverse().map((x,i)=>h("div",{className:"tl-item",key:i},
+        h("b",null,EST_SOL[x.est]?EST_SOL[x.est].l:x.est), " — ", x.por,
+        h("span",{className:"w"}," · "+fhora(x.t))))) : null);
+}
+
+/* ================= bandeja de MRO ================= */
+function SolicitudesMRO({sols,items,onOpen}){
+  const [est,setEst] = useState("ABIERTAS");
+  const list = sols.filter(s=>{
+    if(est==="ABIERTAS") return s.est==="NUEVA"||s.est==="EN_SURTIDO";
+    if(est==="TODAS") return true;
+    return s.est===est;
+  }).sort((a,b)=>{
+    const ua = a.urg && a.urg!==URGENCIAS[0] ? 0 : 1, ub = b.urg && b.urg!==URGENCIAS[0] ? 0 : 1;
+    if(ua!==ub) return ua-ub;
+    return a.f<b.f?1:-1;
+  });
+  const cuenta = e => sols.filter(s=>s.est===e).length;
+  return h("div",null,
+    h("div",{className:"kpis"},
+      h("div",{className:"kpi warn"},h("div",{className:"n"},nf(cuenta("NUEVA"))),
+        h("div",{className:"l"},"Por revisar"),h("div",{className:"d"},"recién solicitadas")),
+      h("div",{className:"kpi"},h("div",{className:"n"},nf(cuenta("EN_SURTIDO"))),
+        h("div",{className:"l"},"Surtiendo"),h("div",{className:"d"},"las estás juntando")),
+      h("div",{className:"kpi good"},h("div",{className:"n"},nf(cuenta("SURTIDA"))),
+        h("div",{className:"l"},"Listas"),h("div",{className:"d"},"avisadas, sin recoger")),
+      h("div",{className:"kpi calm"},h("div",{className:"n"},nf(cuenta("RECOGIDA"))),
+        h("div",{className:"l"},"Recogidas"),h("div",{className:"d"},"histórico"))),
+    h("div",{className:"panel"},
+      h("div",{className:"toolbar"},
+        h("div",{className:"seg"},[["ABIERTAS","Abiertas"],["SURTIDA","Listas"],["RECOGIDA","Recogidas"],["TODAS","Todas"]].map(o=>
+          h("button",{key:o[0],className:est===o[0]?"active":"",onClick:()=>setEst(o[0])},o[1])))),
+      list.length===0 ? h("div",{className:"empty"},"Nada por surtir aquí")
+      : h("div",{className:"tbl-scroll"},
+        h("table",{className:"tbl"},
+          h("thead",null,h("tr",null,["Folio","Solicitada","Solicitante","Área","Líder","Material","Estado",""].map(t=>h("th",{key:t},t)))),
+          h("tbody",null, list.map(s=>h("tr",{key:s.id,className:"row-click",onClick:()=>onOpen(s)},
+            h("td",{className:"mono",style:{fontWeight:700}},s.folio||"—",
+              s.urg && s.urg!==URGENCIAS[0] ? h("span",{className:"pill pill-block",style:{marginLeft:6}},"URGE") : null),
+            h("td",{className:"mono"},fhora(s.f)),
+            h("td",{style:{fontWeight:600}},s.sol.nombre),
+            h("td",null,s.sol.area),
+            h("td",null,s.lider||s.sup||h("span",{className:"muted"},"—")),
+            h("td",null, s.lin.map(l=>l.c+" ×"+nf(l.q)).join(", "),
+              s.urg && s.urg!==URGENCIAS[0] && s.nota
+                ? h("div",{style:{fontSize:12,color:"var(--crit)",fontWeight:500,marginTop:3}},s.nota) : null),
+            h("td",null,h("span",{className:"pill "+EST_SOL[s.est].p},EST_SOL[s.est].l)),
+            h("td",null,h("button",{className:"btn btn-sm btn-primary"},
+              s.est==="NUEVA"?"Revisar":s.est==="EN_SURTIDO"?"Continuar":"Ver")))))))));
+}
+
+/* ================= vista del área que pide ================= */
+function MisSolicitudes({sols,yo,onNueva,onOpen,onConfirmar}){
+  const mias = sols.filter(s=>s.sol.nombre===yo.nombre).sort((a,b)=> (a.f<b.f?1:-1));
+  const listas = mias.filter(s=>s.est==="SURTIDA");
+  return h("div",null,
+    listas.length ? h("div",{className:"banner"},
+      h("div",{className:"bt"},
+        "Tienes "+listas.length+" solicitud"+(listas.length>1?"es":"")+" lista"+(listas.length>1?"s":"")+" para recoger"),
+      listas.map(s=>h("div",{key:s.id,className:"tl-item",
+          style:{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",padding:"8px 0 8px 12px"}},
+        h("div",{style:{flex:"1 1 300px",cursor:"pointer"},onClick:()=>onOpen(s)},
+          h("b",null,s.folio||"Solicitud"), " — ", (s.aviso&&s.aviso.msg)||AVISO_DEFAULT,
+          h("span",{className:"w"}," · avisado "+fhora(s.aviso?s.aviso.t:s.f))),
+        h("button",{className:"btn btn-sm btn-ok",onClick:()=>onConfirmar(s)},"Confirmar recibido")))) : null,
+    h("div",{className:"panel"},
+      h("div",{className:"toolbar"},
+        h("div",{className:"sec-t",style:{margin:0}},"Mis solicitudes ",h("small",null,yo.nombre+" · "+yo.area)),
+        h("div",{className:"grow"}),
+        h("button",{className:"btn btn-primary",onClick:onNueva},"Nueva solicitud")),
+      mias.length===0 ? h("div",{className:"empty"},"Todavía no has pedido material. Presiona «Nueva solicitud».")
+      : h("div",{className:"tbl-scroll"},
+        h("table",{className:"tbl"},
+          h("thead",null,h("tr",null,["Folio","Solicitada","Material","Líder","Estado","Aviso",""].map(t=>h("th",{key:t},t)))),
+          h("tbody",null, mias.map(s=>h("tr",{key:s.id,className:"row-click",onClick:()=>onOpen(s)},
+            h("td",{className:"mono",style:{fontWeight:700}},s.folio||"—"),
+            h("td",{className:"mono"},fhora(s.f)),
+            h("td",null, s.lin.map(l=>l.c+" ×"+nf(l.q)+" "+(l.u||"")).join(", ")),
+            h("td",null,s.lider||s.sup||"—"),
+            h("td",null,h("span",{className:"pill "+EST_SOL[s.est].p},EST_SOL[s.est].l)),
+            h("td",{className:"muted",style:{fontSize:12.5,maxWidth:250,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},
+              s.aviso?s.aviso.msg:"—"),
+            h("td",null,h("button",{className:"btn btn-sm"},"Ver")))))))));
+}
+
+/* ================= pestaña: Panel ================= */
+function Panel({items,movs,reqs,go,onOpen}){
+  const bajo = items.filter(i=>i.mn>0 && i.s<i.mn);
+  const cero = items.filter(i=>i.s<=0);
+  const sinClas = items.filter(i=>!i.k);
+  const sinProv = items.filter(i=>!i.p);
+  const mesActual = mesKey(hoy());
+  const salidasMes = movs.filter(m=>m.t==="S" && mesKey(m.f)===mesActual).length;
+  const meses = [];
+  for(let i=5;i>=0;i--){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-i);
+    meses.push(d.toISOString().slice(0,7)); }
+  const porMes = meses.map(k=>({n:mesLbl(k), v:movs.filter(m=>m.t==="S"&&mesKey(m.f)===k).reduce((a,m)=>a+Math.abs(m.q),0)}));
+  const topRows = (()=>{ const acc={};
+    movs.forEach(m=>{ if(m.t==="S"){ acc[m.c]=(acc[m.c]||0)+Math.abs(m.q); } });
+    const idx={}; items.forEach(i=>idx[i.c]=i);
+    return Object.keys(acc).map(c=>({n:c+" · "+((idx[c]||{}).d||"").slice(0,38), v:acc[c]}))
+      .sort((a,b)=>b.v-a.v).slice(0,8); })();
+  return h("div",null,
+    h("div",{className:"kpis"},
+      h("div",{className:"kpi click",onClick:()=>go("inv")},h("div",{className:"n"},nf(items.length)),
+        h("div",{className:"l"},"Partes en catálogo"),h("div",{className:"d"},FAMILIAS.length+" familias")),
+      h("div",{className:"kpi warn click",onClick:()=>go("inv")},h("div",{className:"n"},nf(bajo.length)),
+        h("div",{className:"l"},"Bajo mínimo"),h("div",{className:"d"},"requieren reposición")),
+      h("div",{className:"kpi bad click",onClick:()=>go("inv")},h("div",{className:"n"},nf(cero.length)),
+        h("div",{className:"l"},"En cero"),h("div",{className:"d"},Math.round(cero.length/items.length*100)+"% del catálogo")),
+      h("div",{className:"kpi click",onClick:()=>go("mov")},h("div",{className:"n"},nf(salidasMes)),
+        h("div",{className:"l"},"Salidas del mes"),h("div",{className:"d"},mesLbl(mesActual))),
+      h("div",{className:"kpi click",onClick:()=>go("compras")},h("div",{className:"n"},nf(reqs.filter(r=>r.est!=="RECIBIDA"&&r.est!=="CANCELADA").length)),
+        h("div",{className:"l"},"Requisiciones abiertas"),h("div",{className:"d"},reqs.length+" en total"))),
+    h("div",{className:"chart-grid"},
+      h(ColChart,{title:"Consumo por mes",unit:"unidades salidas",rows:porMes}),
+      h(BarChart,{title:"Partes más consumidas",unit:"unidades",rows:topRows,tono:4})),
+    h("div",{className:"panel"},
+      h("div",{className:"sec-t"},"Bajo mínimo ",h("small",null,bajo.length+" partes — ordenadas por faltante")),
+      bajo.length===0 ? h("div",{className:"empty"},"Todo por arriba del mínimo") :
+      h("div",{className:"tbl-scroll"},
+        h("table",{className:"tbl"},
+          h("thead",null,h("tr",null,["No. parte","Descripción","Ubicación","Proveedor"].map(t=>h("th",{key:t},t)),
+            ["Stock","Mín","Faltan"].map(t=>h("th",{key:t,className:"num"},t)))),
+          h("tbody",null, bajo.map(i=>({i,falta:i.mn-i.s})).sort((a,b)=>b.falta-a.falta).slice(0,15).map(r=>
+            h("tr",{key:r.i.c,className:"row-click",onClick:()=>onOpen(r.i)},
+              h("td",{className:"mono",style:{fontWeight:700}},r.i.c),
+              h("td",{style:{maxWidth:340,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},r.i.d),
+              h("td",{className:"mono",style:{fontSize:12.5}},r.i.l||"—"),
+              h("td",{style:{maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},r.i.p||"—"),
+              h("td",{className:"num"},h(StockCell,{it:r.i})),
+              h("td",{className:"num mono muted"},nf(r.i.mn)),
+              h("td",{className:"num mono",style:{fontWeight:800,color:"var(--crit)"}},nf(r.falta)))))))),
+    h("div",{className:"panel"},
+      h("div",{className:"sec-t"},"Calidad del catálogo ",h("small",null,"lo que conviene limpiar antes de migrar")),
+      h("div",{className:"tiles"},
+        h("div",{className:"tile"},h("div",{className:"tv"},nf(sinClas.length)),h("div",{className:"tl"},"Sin clasificación")),
+        h("div",{className:"tile"},h("div",{className:"tv"},nf(sinProv.length)),h("div",{className:"tl"},"Sin proveedor")),
+        h("div",{className:"tile"},h("div",{className:"tv"},nf(items.filter(i=>!i.l).length)),h("div",{className:"tl"},"Sin ubicación")),
+        h("div",{className:"tile"},h("div",{className:"tv"},nf(items.filter(i=>!i.mn).length)),h("div",{className:"tl"},"Sin mínimo definido")),
+        h("div",{className:"tile"},h("div",{className:"tv"},nf(items.filter(i=>!i.pp).length)),h("div",{className:"tl"},"Sin P/N de proveedor")),
+        h("div",{className:"tile",style:{borderLeftColor:"var(--crit)"}},
+          h("div",{className:"tv"},nf(items.filter(i=>i.s<0).length)),h("div",{className:"tl"},"Stock negativo")),
+        h("div",{className:"tile",style:{borderLeftColor:"#e8a33d"}},
+          h("div",{className:"tv"},nf(items.filter(i=>anomalias(i,consumoMensual(movs,i.c,6)||i.cm||0).length).length)),
+          h("div",{className:"tl"},"Parámetros dudosos")))));
+}
+
+/* ================= pestaña: Reportes ================= */
+function Reportes({items,movs}){
+  const [rango,setRango]=useState(6);
+  const desde = (()=>{ const d=new Date(); d.setMonth(d.getMonth()-rango); return d.toISOString().slice(0,10); })();
+  const sal = movs.filter(m=>m.t==="S" && m.f>=desde);
+  const idx={}; items.forEach(i=>idx[i.c]=i);
+  const agrupar = (campo, top) => {
+    const acc={};
+    sal.forEach(m=>{ const k = campo==="fam" ? clasFam((idx[m.c]||{}).k) : (m[campo]||"Sin dato");
+      acc[k]=(acc[k]||0)+Math.abs(m.q); });
+    return Object.keys(acc).map(k=>({n:k,v:acc[k]})).sort((a,b)=>b.v-a.v).slice(0,top||10);
+  };
+  const rot = items.map(i=>{ const cm=consumoMensual(movs,i.c,rango);
+      return {n:i.c+" · "+(i.d||"").slice(0,32), v: i.s>0 ? +(cm*12/i.s).toFixed(1) : 0, sub:" vueltas/año"}; })
+    .filter(r=>r.v>0).sort((a,b)=>b.v-a.v).slice(0,10);
+  const lentos = items.filter(i=>i.s>0 && consumoMensual(movs,i.c,rango)===0)
+    .map(i=>({n:i.c+" · "+(i.d||"").slice(0,32), v:i.s})).sort((a,b)=>b.v-a.v).slice(0,10);
+  return h("div",null,
+    h("div",{className:"dash-head"},
+      h("div",null,h("div",{className:"dh-t"},"Reportes de consumo"),
+        h("div",{className:"dh-s"},nf(sal.length)+" salidas analizadas desde "+fdate(desde))),
+      h("div",{className:"seg on-dark"},[3,6,12,24].map(v=>
+        h("button",{key:v,className:rango===v?"active":"",onClick:()=>setRango(v)},v+" meses")))),
+    h("div",{className:"chart-grid"},
+      h(BarChart,{title:"Consumo por área",unit:"unidades",rows:agrupar("area"),tono:1}),
+      h(BarChart,{title:"Consumo por requisitor",unit:"unidades",rows:agrupar("req"),tono:2}),
+      h(BarChart,{title:"Consumo por máquina",unit:"unidades",rows:agrupar("maq"),tono:3}),
+      h(BarChart,{title:"Consumo por proyecto",unit:"unidades",rows:agrupar("proy"),tono:8}),
+      h(BarChart,{title:"Consumo por familia",unit:"unidades",rows:agrupar("fam"),tono:6}),
+      h(BarChart,{title:"Motivo de salida",unit:"unidades",rows:agrupar("mot"),tono:5}),
+      h(BarChart,{title:"Mayor rotación",unit:"vueltas al año",rows:rot,fmt:v=>nf1(v),tono:4}),
+      h(BarChart,{title:"Sin movimiento en el periodo",unit:"stock detenido",rows:lentos,tono:7})));
+}
+
+/* ================= App ================= */
+function App(){
+  const [yo,setYo]           = useState(()=>load("rm_mro_yo_v1",null));
+  const [pideId,setPideId]   = useState(false);
+  const [movsDb,setMovsDb]   = useState([]);
+  const [fichas,setFichas]   = useState({});
+  const [reqs,setReqs]       = useState([]);
+  const [sols,setSols]       = useState([]);
+  const [compartido,setComp] = useState(false);
+  const [demo]               = useState(()=>movsDemo(SEED_ITEMS));
+  const [tab,setTab]         = useState(null);
+  const [modal,setModal]     = useState(null);
+  const [toast,setToast]     = useState("");
+
+  useEffect(()=>{ let offs=[];
+    (async()=>{
+      setComp(await STORE.init());
+      offs.push(STORE.watch("movimientos", r=>setMovsDb(r)));
+      offs.push(STORE.watch("fichas",      r=>{ const o={}; r.forEach(x=>o[x.id]=x); setFichas(o); }));
+      offs.push(STORE.watch("reqs",        r=>setReqs(r)));
+      offs.push(STORE.watch("solicitudes", r=>setSols(r)));
+    })();
+    return ()=>offs.forEach(f=>{ try{ f&&f(); }catch(e){} });
+  },[]);
+  useEffect(()=>{ if(yo) save("rm_mro_yo_v1",yo); },[yo]);
+  useEffect(()=>{ if(!toast) return; const t=setTimeout(()=>setToast(""),4200); return ()=>clearTimeout(t); },[toast]);
+
+  /* el catálogo es fijo; el stock sale de la suma de los movimientos guardados */
+  const items = useMemo(()=>{
+    const delta={}; movsDb.forEach(m=>{ delta[m.c]=(delta[m.c]||0)+(Number(m.q)||0); });
+    return SEED_ITEMS.map(o=>{ const f=fichas[o.c]||{};
+      return Object.assign({}, o, f, {c:o.c, s:(o.s||0)+(delta[o.c]||0)}); });
+  },[movsDb,fichas]);
+  const M = useMemo(()=> movsDb.concat(demo).sort((a,b)=> a.f<b.f?1:-1), [movsDb,demo]);
+
+  const esMRO = !!yo && yo.rol==="MRO";
+  const TABS = esMRO
+    ? [["sol","Solicitudes"],["panel","Panel"],["inv","Inventario"],
+       ["mov","Movimientos"],["compras","Compras"],["rep","Reportes"]]
+    : [["mis","Mis solicitudes"],["cat","Catálogo"]];
+  const vista = tab && TABS.some(t=>t[0]===tab) ? tab : TABS[0][0];
+  const bajo = items.filter(i=>i.mn>0 && i.s<i.mn).length;
+  const reqAbiertas = reqs.filter(r=>r.est!=="RECIBIDA"&&r.est!=="CANCELADA").length;
+  const nuevas = sols.filter(s=>s.est==="NUEVA").length;
+  const misListas = yo ? sols.filter(s=>s.est==="SURTIDA" && s.sol.nombre===yo.nombre).length : 0;
+  /* los líderes ya capturados alimentan el autocompletado */
+  const lideres = Array.from(new Set(sols.map(s=>s.lider||s.sup).filter(Boolean))).sort();
+
+  const aplicar = async m => {
+    await STORE.put("movimientos", m.id, Object.assign({},m,{por:m.por||(yo?yo.nombre:"")}));
+    setModal(null);
+    setToast(TIPOS[m.t].l+" registrada: "+m.c+" ("+(m.q>0?"+":"")+nf(m.q)+")");
+  };
+  const cancelarMov = async m => {
+    if(m.dem){ setToast("Ese movimiento es del historial de ejemplo, no se puede cancelar"); return; }
+    await STORE.del("movimientos", m.id);
+    setToast("Movimiento cancelado y stock revertido");
+  };
+  const guardarFicha = async d => {
+    await STORE.put("fichas", d.c, {d:d.d,k:d.k,u:d.u,l:d.l,p:d.p,pp:d.pp,
+      mn:Number(d.mn)||0,rp:Number(d.rp)||0,lt:Number(d.lt)||1,mo:Number(d.mo)||0,mu:Number(d.mu)||0});
+    setToast("Ficha actualizada");
+  };
+  const crearReqs = async porProv => {
+    const base = reqs.length;
+    const nuevasReq = Object.keys(porProv).map((p,k)=>({
+      id:uid(), folio:"REQ-"+String(base+k+1).padStart(4,"0"), f:hoy(), prov:p, est:"BORRADOR", oc:"",
+      lin: porProv[p].map(r=>({c:r.it.c, q:r.sug}))}));
+    for(const r of nuevasReq) await STORE.put("reqs", r.id, r);
+    setTab("compras");
+    setToast(nuevasReq.length+" requisición(es) de compra generada(s)");
+  };
+  const recibir = async req => {
+    const nuevos = req.lin.filter(l=>l.q>0).map(l=>({id:uid(), f:hoy(), c:l.c,
+      u:(items.find(i=>i.c===l.c)||{}).u||"PZA", t:"E", q:l.q, area:"Almacén MP",
+      req:"", proy:"", maq:"", mot:"Recepción de compra", oc:req.oc, fac:"",
+      nota:"Requisición "+req.folio, por:yo?yo.nombre:""}));
+    for(const m of nuevos) await STORE.put("movimientos", m.id, m);
+    await STORE.put("reqs", req.id, Object.assign({},req,{est:"RECIBIDA"}));
+    setModal(null);
+    setToast("Recibidas "+nuevos.length+" partes de "+req.folio);
+  };
+  const crearSol = async s => {
+    const folio = "SOL-"+String(sols.length+1).padStart(4,"0");
+    await STORE.put("solicitudes", s.id, Object.assign({},s,{folio}));
+    setModal(null);
+    setToast("Solicitud "+folio+" enviada a MRO");
+  };
+  /* el solicitante acusa de recibido y con eso se apaga su alerta */
+  const confirmarRecibo = async s => {
+    await STORE.put("solicitudes", s.id, Object.assign({},s,{est:"RECOGIDA",
+      hist:(s.hist||[]).concat([sello("RECOGIDA", yo?yo.nombre:"", "confirmó de recibido")])}));
+    setToast(s.folio+": recibido confirmado, gracias");
+  };
+  const guardarSol = async s => {
+    await STORE.put("solicitudes", s.id, s);
+    setModal(null);
+    setToast(s.folio+" → "+EST_SOL[s.est].l);
+  };
+  /* al marcarla surtida se descuenta solo lo que MRO surtió, a nombre del solicitante */
+  const surtirSol = async (s, msg) => {
+    const salidas = s.lin.filter(l=>Number(l.qs)>0).map(l=>({id:uid(), f:hoy(), c:l.c,
+      u:l.u||(items.find(i=>i.c===l.c)||{}).u||"PZA", t:"S", q:-Number(l.qs), area:s.sol.area,
+      req:s.sol.nombre, proy:"", maq:"",
+      mot: s.urg && s.urg!==URGENCIAS[0] ? "Rotura / falla" : "Consumo normal", oc:"", fac:"",
+      nota:"Solicitud "+s.folio+((s.lider||s.sup)?" · líder "+(s.lider||s.sup):""), por:yo?yo.nombre:""}));
+    for(const m of salidas) await STORE.put("movimientos", m.id, m);
+    await STORE.put("solicitudes", s.id, Object.assign({},s,{est:"SURTIDA",
+      aviso:{msg, t:new Date().toISOString(), por:yo?yo.nombre:""},
+      hist:(s.hist||[]).concat([sello("SURTIDA", yo?yo.nombre:"", "")])}));
+    setModal(null);
+    setToast(s.folio+" surtida: "+salidas.length+" renglón(es) descontados y avisado a "+s.sol.nombre);
+  };
+
+  if(!yo) return h(Fragment,null,
+    h("div",{className:"hdr"},
+      h("div",{className:"brand"},h("div",{className:"logo"},"MRO"),
+        h("div",null,h("div",{className:"t"},"Control de Inventario MRO"),
+          h("div",{className:"s"},"RUBBER MEXICO · ALMACÉN MRO")))),
+    h(IdentidadModal,{yo:null,onSave:setYo,onClose:()=>{}}));
+
+  return h(Fragment,null,
+    h("div",{className:"hdr"},
+      h("div",{className:"brand"},h("div",{className:"logo"},"MRO"),
+        h("div",null,h("div",{className:"t"},"Control de Inventario MRO"),
+          h("div",{className:"s"},"RUBBER MEXICO · ALMACÉN MRO"))),
+      h("div",{className:"hdr-r"},
+        h("span",{className:"conn"+(compartido?" on":"")}, compartido ? "Datos compartidos" : "Sin servidor · solo este equipo"),
+        h("button",{className:"btn btn-sm",onClick:()=>setPideId(true)},
+          yo.nombre+"  ·  "+yo.area))),
+    h("div",{className:"wrap"},
+      h("div",{className:"tabs"}, TABS.map(t=>h("button",{key:t[0],className:"tab"+(vista===t[0]?" active":""),
+        onClick:()=>setTab(t[0])}, t[1],
+        t[0]==="sol"&&nuevas ? h("span",{className:"bdg"},nuevas) : null,
+        t[0]==="mis"&&misListas ? h("span",{className:"bdg"},misListas) : null,
+        t[0]==="inv"&&bajo ? h("span",{className:"bdg"},bajo) : null,
+        t[0]==="compras"&&reqAbiertas ? h("span",{className:"bdg"},reqAbiertas) : null))),
+      vista==="sol" ? h(SolicitudesMRO,{sols,items,onOpen:s=>setModal({k:"sol",sol:s})}) : null,
+      vista==="mis" ? h(MisSolicitudes,{sols,yo,onNueva:()=>setModal({k:"nueva"}),
+        onOpen:s=>setModal({k:"sol",sol:s}), onConfirmar:confirmarRecibo}) : null,
+      vista==="cat" ? h(Inventario,{items,movs:M,onOpen:i=>setModal({k:"item",it:i}),onMov:null}) : null,
+      vista==="panel" ? h(Panel,{items,movs:M,reqs,go:setTab,onOpen:i=>setModal({k:"item",it:i})}) : null,
+      vista==="inv" ? h(Inventario,{items,movs:M,onOpen:i=>setModal({k:"item",it:i}),
+        onMov:(t,i)=>setModal({k:"mov",t,it:i})}) : null,
+      vista==="mov" ? h(Movimientos,{movs:M,items,onMov:(t,i)=>setModal({k:"mov",t,it:i}),onDel:cancelarMov}) : null,
+      vista==="compras" ? h(Compras,{items,movs:M,reqs,onCrear:crearReqs,onOpenReq:r=>setModal({k:"req",req:r})}) : null,
+      vista==="rep" ? h(Reportes,{items,movs:M}) : null),
+    pideId ? h(IdentidadModal,{yo,onSave:d=>{setYo(d);setPideId(false);setTab(null);},
+      onClose:()=>setPideId(false)}) : null,
+    modal&&modal.k==="nueva" ? h(NuevaSolicitudModal,{items,yo,
+      onSave:crearSol,onClose:()=>setModal(null)}) : null,
+    modal&&modal.k==="sol" ? h(SolicitudDetalle,{sol:sols.find(s=>s.id===modal.sol.id)||modal.sol,
+      items,yo,onUpd:guardarSol,onSurtir:surtirSol,onClose:()=>setModal(null)}) : null,
+    modal&&modal.k==="mov" ? h(MovModal,{tipo:modal.t,item:modal.it,items,onSave:aplicar,onClose:()=>setModal(null)}) : null,
+    modal&&modal.k==="item" ? h(ItemModal,{it:items.find(i=>i.c===modal.it.c)||modal.it,movs:M,
+      onSave:guardarFicha, onMov:esMRO?((t,i)=>setModal({k:"mov",t,it:i})):null,
+      onClose:()=>setModal(null)}) : null,
+    modal&&modal.k==="req" ? h(ReqModal,{req:reqs.find(r=>r.id===modal.req.id)||modal.req,items,
+      onUpd:async r=>{ await STORE.put("reqs",r.id,r); setModal(null); setToast(r.folio+" → "+r.est); },
+      onRecibir:recibir, onClose:()=>setModal(null)}) : null,
+    h("datalist",{id:"dl-items"}, items.slice(0,900).map(i=>h("option",{key:i.c,value:i.c},i.d))),
+    h("datalist",{id:"dl-lider"}, lideres.map(s=>h("option",{key:s,value:s}))),
+    h("datalist",{id:"dl-ubic"}, UBICACIONES.map(u=>h("option",{key:u,value:u}))),
+    h("datalist",{id:"dl-prov"}, PROVEEDORES.map(p=>h("option",{key:p,value:p}))),
+    toast ? h("div",{className:"toast"},toast) : null);
+}
+ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+</script>
+</body>
+</html>

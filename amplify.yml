@@ -1,0 +1,14 @@
+version: 1
+# Static-site build for AWS Amplify.
+# No build step — the HTML is a single-file React app (Babel standalone).
+# PDFs and other static assets are served as-is.
+frontend:
+  phases:
+    build:
+      commands: []
+  artifacts:
+    baseDirectory: /
+    files:
+      - '**/*'
+  cache:
+    paths: []
