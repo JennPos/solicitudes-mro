@@ -1,11 +1,18 @@
-# Almacén MRO — Rubber Mexico
+# Solicitud de material — MRO
 
-Solicitudes de material al almacén MRO: las áreas piden, MRO surte y avisa, y el
-inventario se descuenta solo. Incluye catálogo, sugerido de compra, requisiciones
-y reportes de consumo.
+El link que usa toda la planta para pedirle material al almacén MRO.
+Pensado para **solicitar.rubber-mexico.com**.
 
-Pensado para publicarse como **mro.rubber-mexico.com**, un sitio hermano de
-gemba / calidad / lab / cnc / production / sales / purchasing.
+Quien entra se identifica con su cuenta de Google de la empresa, elige el
+material del catálogo y manda la solicitud. Esa solicitud **aparece sola en la
+bandeja del almacén**, dentro de la sección MRO del portal de compras
+(`purchasing.rubber-mexico.com/consolidated/mro_solicitudes`), y de ahí sigue
+el flujo de siempre: el almacén la revisa, la surte, avisa y el inventario se
+descuenta. Cuando está lista, a quien la pidió le aparece el aviso aquí mismo
+y confirma de recibido.
+
+Este sitio **no administra inventario**: no muestra existencias ni permite
+mover stock. Sólo pide y da seguimiento.
 
 ---
 
@@ -13,73 +20,65 @@ gemba / calidad / lab / cnc / production / sales / purchasing.
 
 | Archivo | Para qué |
 |---|---|
-| `index.html` | El sitio completo. Un solo archivo: React por CDN, sin build. |
-| `config.js` | La URL del backend. **Es lo único que hay que editar al desplegar.** |
+| `index.html` | El sitio completo. Un archivo, React por CDN, sin build. |
+| `config.js` | **Lo único que se edita.** Client ID de Google y URL del API. |
 | `amplify.yml` | Publicación estática en AWS Amplify (sin paso de build). |
-| `backend/lambda_function.py` | El backend: guarda las colecciones como JSON en S3. |
-| `backend/deploy.sh` | Crea o actualiza ese backend en AWS. |
 | `_catalogo_fuente.js` | El catálogo suelto, por si hay que regenerarlo. No lo carga el sitio. |
 
-## Desplegar
+El backend **no vive aquí**: es `lambdas/mro-publico/handler.py` del repo
+`hcarter-4545/vendor-portal`, para que escriba en el mismo archivo de datos que
+lee el portal.
 
-### 1. El backend (una vez)
+## Los tres pasos para ponerlo en línea
 
-```bash
-cd backend
-./deploy.sh --crear
+### 1. Client ID de Google
+
+En la consola de Google Cloud de la empresa, crear credenciales OAuth tipo
+**Aplicación web** y autorizar el origen `https://solicitar.rubber-mexico.com`.
+Copiar el Client ID a `config.js`:
+
+```js
+window.MRO_GOOGLE_CLIENT_ID = '....apps.googleusercontent.com';
 ```
 
-Crea el bucket `mro-data-<cuenta>`, el rol, la función `mro-bridge` y una API HTTP
-en `us-west-2`. Al terminar imprime la URL del API Gateway.
+### 2. El backend
 
-Para actualizar el código después, `./deploy.sh` a secas.
+En el repo `vendor-portal`, desplegar la función `lambdas/mro-publico/handler.py`
+y **colgarla de una ruta `POST /mro-publico` sin el autorizador de Cognito** —
+es la única ruta abierta, porque quien pide material no tiene cuenta del portal.
+La función necesita estas variables de entorno:
 
-### 2. El sitio
+| Variable | Valor |
+|---|---|
+| `DATA_BUCKET` | el mismo bucket de datos del portal |
+| `MRO_GOOGLE_CLIENT_ID` | el Client ID del paso 1 |
+| `MRO_DOMINIO` | `rubber-mexico.com` |
+| `MRO_ALLOW_ORIGIN` | `https://solicitar.rubber-mexico.com` |
 
-Editar `config.js` con la URL que imprimió el paso anterior:
+Permisos de la función: leer y escribir `data/mro_solicitudes.json` en ese bucket.
+
+Después, poner la URL del API en `config.js`:
 
 ```js
 window.MRO_API_BASE = 'https://XXXXXXXX.execute-api.us-west-2.amazonaws.com/prod';
 ```
 
-Y publicar el repositorio en Amplify (o en S3 + CloudFront, como purchasing):
-conectar el repo, sin comandos de build, y apuntar el dominio
-`mro.rubber-mexico.com` a la app.
+### 3. El sitio
 
-### 3. Que aparezca en la barra de sitios
+Conectar este repositorio a Amplify (sin comandos de build) y apuntar el
+dominio `solicitar.rubber-mexico.com`.
 
-La barra negra de arriba la pinta `app-switcher.js`, que sirve cada sitio desde su
-propia raíz. Para que **MRO** salga ahí junto a los demás, hay que agregar
-`{ id: 'mro', title: 'Almacén MRO' }` a la lista `SITES` de ese archivo y volver a
-publicarlo en cada sitio. Este sitio ya carga el switcher, así que desde MRO se ve
-el resto del ecosistema aunque ese cambio no se haya hecho.
+## Mientras falte algo
 
-## Sin backend, no opera
+El sitio abre igual y lo dice en pantalla: si falta el Client ID no deja entrar,
+y si falta el API avisa que lo capturado no le llega al almacén. Nunca finge que
+guardó.
 
-Mientras `MRO_API_BASE` esté vacío, la página funciona pero **guarda en el
-navegador de cada quien**: una solicitud capturada en Nave 1 no le llega a MRO.
-El encabezado lo dice en todo momento — "Datos compartidos" contra "Sin servidor ·
-solo este equipo". Sirve para enseñar el flujo, no para operar.
+## Por qué el correo lo decide el backend
 
-## Cómo guarda los datos
-
-Cuatro colecciones, un JSON por colección en S3 (`mro/<colección>.json`), cada una
-un objeto `{id: documento}`:
-
-- `solicitudes` — lo que piden las áreas y su seguimiento
-- `movimientos` — entradas, salidas y ajustes; **el stock se calcula sumándolos**
-  sobre el catálogo semilla, no se guarda aparte
-- `fichas` — cambios a la ficha de una parte (mínimo, ubicación, proveedor…)
-- `reqs` — requisiciones de compra
-
-El front relee cada 12 segundos, así que MRO ve las solicitudes nuevas sin recargar.
-
-## Pendientes conocidos
-
-- **El catálogo está incompleto**: 498 partes de más de 1,000. Salieron del Google
-  Sheet "Control de Inventario - MRO 2022-24", que Google no deja exportar completo.
-  Falta volver a importarlo desde el xlsx.
-- **Los roles son declarados, no verificados**: quien entra elige si trabaja en MRO.
-  Al integrarse con la sesión del portal (Cognito), amarrarlos a la cuenta.
-- **El grupo "Soporte y administración"** de la lista de áreas está por confirmar;
-  los departamentos y áreas de trabajo sí son los reales de la planta.
+El navegador manda el token que firma Google; la función lo verifica contra
+Google, revisa que la audiencia sea nuestro Client ID y que el dominio sea el de
+la empresa, y **de ahí saca el correo**. Nada de lo que el navegador diga sobre
+quién es se toma por cierto. Por eso el solicitante sólo puede crear sus
+solicitudes y confirmar de recibido las suyas: surtir y descontar inventario
+vive del otro lado, en el portal.

@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Control de Inventario MRO</title>
+<title>Solicitud de material — MRO</title>
 <script src="https://purchasing.rubber-mexico.com/app-switcher.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="config.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
@@ -256,6 +257,73 @@ const UNIDADES=["BOLSA", "CAJA", "CUB", "KG", "MTS", "PAQ", "PAR", "PIES", "PZA"
 <script>
 const {createElement: h, useState, useEffect, useMemo, Fragment} = React;
 
+/* ================= quién entra =================
+   Entrada con la cuenta de Google de la empresa. No hay contraseñas aquí:
+   Google devuelve un JWT firmado, el backend lo verifica y saca de ahí el
+   correo. Sólo pasan las cuentas del dominio de la empresa.            */
+const DOMINIO = (window.MRO_DOMINIO || 'rubber-mexico.com').toLowerCase();
+
+function leerJwt(t){
+  try{
+    const base = t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    return JSON.parse(decodeURIComponent(atob(base).split('').map(
+      c => '%' + ('00'+c.charCodeAt(0).toString(16)).slice(-2)).join('')));
+  }catch(e){ return null; }
+}
+
+const SESION = (function(){
+  let cred = null, perfil = null;
+  const K = 'mro_sol_cred';
+  try{
+    const g = localStorage.getItem(K);
+    if(g){ const p = leerJwt(g); if(p && p.exp*1000 > Date.now()){ cred = g; perfil = p; } }
+  }catch(e){}
+  return {
+    get token(){ return cred; },
+    get perfil(){ return perfil; },
+    get valido(){ return !!(perfil && perfil.exp*1000 > Date.now()); },
+    entrar(credential){
+      const p = leerJwt(credential);
+      if(!p) return {ok:false, error:'No pude leer la respuesta de Google.'};
+      const correo = (p.email||'').toLowerCase();
+      const dominio = (p.hd||'').toLowerCase() || correo.split('@')[1] || '';
+      if(dominio !== DOMINIO)
+        return {ok:false, error:'Entra con tu cuenta @'+DOMINIO+'. Esa ('+correo+') es de otro dominio.'};
+      if(p.email_verified === false)
+        return {ok:false, error:'Google marca ese correo como no verificado.'};
+      cred = credential; perfil = p;
+      try{ localStorage.setItem(K, credential); }catch(e){}
+      return {ok:true};
+    },
+    salir(){ cred = null; perfil = null; try{ localStorage.removeItem(K); }catch(e){} }
+  };
+})();
+
+/* ================= a dónde van las solicitudes =================
+   Al mismo backend del portal de compras, para que le caigan al almacén en
+   su bandeja. El token de Google viaja en el cuerpo y el Lambda lo verifica. */
+const ENVIO = (function(){
+  const API = (window.MRO_API_BASE || '').replace(/\/+$/,'');
+  async function llamar(action, extra){
+    if(!API) throw new Error('sin API');
+    const r = await fetch(API + '/mro-publico', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(Object.assign({action, google_token: SESION.token}, extra||{}))
+    });
+    let d = {}; try{ d = await r.json(); }catch(e){}
+    if(!r.ok) throw new Error(d.error || ('HTTP '+r.status));
+    return d;
+  }
+  return {
+    get configurado(){ return !!API; },
+    listar(){ return llamar('mis_solicitudes').then(d => d.items || []); },
+    crear(sol){ return llamar('crear_solicitud', {solicitud: sol}).then(d => d.solicitud); },
+    confirmar(id){ return llamar('confirmar_recibo', {id}); }
+  };
+})();
+
+
 /* ================= catálogos operativos =================
    OJO: estas listas son propuestas — el sheet original tiene las columnas
    (Area, _Requisitor, _Project, #MAQ) pero Drive truncó los renglones con datos.
@@ -351,92 +419,54 @@ async function csvDownload(nombre, filas){
 }
 
 /* ================= almacén compartido =================
-   Tres modos, en este orden:
-   1. API REST  — si config.js define MRO_API_BASE (producción: Lambda + S3).
-   2. Artifact  — la base de datos que claude.ai le presta a la página publicada.
-   3. localStorage — respaldo: la página abierta como archivo, o sin backend todavía.
-      Ojo: en el modo 3 cada dispositivo ve SUS propios datos.                */
+   Este sitio no administra inventario: sólo manda solicitudes y lee las
+   propias. Todo pasa por el backend del portal de compras.             */
 const STORE = (function(){
-  let db = null, listo = false, modo = "local";
-  const API = (typeof window !== "undefined" && window.MRO_API_BASE)
-    ? String(window.MRO_API_BASE).replace(/\/+$/,"") : "";
-  const cache = {};
-  const lk = c => "rm_mro_db_"+c;
-  const todos = c => { if(!cache[c]) cache[c] = load(lk(c), {}); return cache[c]; };
-  const guardar = (c,o) => { cache[c] = o; save(lk(c), o); };
-  const lista = c => { const t=todos(c); return Object.keys(t).map(k=>t[k]); };
+  const cache = {solicitudes: []};
   const subs = {};
-  const avisar = c => (subs[c]||[]).forEach(cb=>cb(lista(c)));
-
-  /* mismo contrato que las demás apps del portal: x-api-key + token de sesión */
-  async function pedir(path, method, body){
-    const opts = { method: method||"GET", headers: {} };
-    if(window.MRO_API_KEY) opts.headers["x-api-key"] = window.MRO_API_KEY;
-    let tok = ""; try{ tok = localStorage.getItem("cnc_id_token") || ""; }catch(e){}
-    if(tok) opts.headers["Authorization"] = "Bearer " + tok;
-    if(body){ opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
-    const r = await fetch(API + path, opts);
-    let d = {}; try{ d = await r.json(); }catch(e){}
-    if(!r.ok) throw new Error(d.error || ("HTTP " + r.status));
-    return d;
-  }
+  let modo = "local";
+  const lk = 'mro_sol_local';
+  const leerLocal = () => { try{ return JSON.parse(localStorage.getItem(lk)||'[]'); }catch(e){ return []; } };
+  const guardarLocal = v => { try{ localStorage.setItem(lk, JSON.stringify(v)); }catch(e){} };
+  const avisar = () => (subs.solicitudes||[]).forEach(cb=>cb(cache.solicitudes.slice()));
 
   return {
-    async init(){
-      if(API){ modo = "api"; listo = true; return true; }
-      try{ db = (window.claude && window.claude.use) ? await window.claude.use("db") : null; }
-      catch(e){ db = null; }
-      modo = db ? "artifact" : "local";
-      listo = true;
-      return !!db;
-    },
-    get compartido(){ return modo === "api" || modo === "artifact"; },
+    get compartido(){ return modo === "api"; },
     get modo(){ return modo; },
-    get iniciado(){ return listo; },
-
-    watch(c, cb){
-      if(modo === "api"){
-        /* sin websockets: se relee cada 12 s para que MRO vea las solicitudes nuevas */
-        let vivo = true;
-        const traer = () => pedir("/mro/"+c)
-          .then(d => { if(vivo) cb(Array.isArray(d) ? d : (d.items || [])); })
-          .catch(()=>{});
-        traer();
-        const t = setInterval(traer, 12000);
-        const alVolver = () => { if(document.visibilityState === "visible") traer(); };
-        document.addEventListener("visibilitychange", alVolver);
-        return ()=>{ vivo = false; clearInterval(t); document.removeEventListener("visibilitychange", alVolver); };
-      }
-      if(db){
-        try{
-          return db.collection(c).onSnapshot(
-            snap => cb(snap.docs.map(d=>Object.assign({}, d.data(), {id:d.id}))),
-            () => {});
-        }catch(e){ /* cae a local */ }
-      }
-      (subs[c] = subs[c]||[]).push(cb);
-      cb(lista(c));
-      return ()=>{ subs[c] = (subs[c]||[]).filter(f=>f!==cb); };
+    async init(){
+      if(!ENVIO.configurado || !SESION.valido){ modo = "local"; cache.solicitudes = leerLocal(); return false; }
+      try{ cache.solicitudes = await ENVIO.listar(); modo = "api"; }
+      catch(e){ modo = "local"; cache.solicitudes = leerLocal(); }
+      avisar();
+      return modo === "api";
     },
-
+    watch(c, cb){
+      if(c !== "solicitudes"){ cb([]); return ()=>{}; }
+      (subs.solicitudes = subs.solicitudes||[]).push(cb);
+      cb(cache.solicitudes.slice());
+      let vivo = true, t = null;
+      if(modo === "api"){
+        const traer = () => ENVIO.listar().then(v=>{ if(vivo){ cache.solicitudes = v; avisar(); } }).catch(()=>{});
+        t = setInterval(traer, 15000);
+        document.addEventListener("visibilitychange", traer);
+      }
+      return ()=>{ vivo = false; if(t) clearInterval(t);
+                   subs.solicitudes = (subs.solicitudes||[]).filter(f=>f!==cb); };
+    },
     async put(c, id, obj){
+      if(c !== "solicitudes") return true;
       const doc = Object.assign({}, obj, {id});
       if(modo === "api"){
-        try{ await pedir("/mro/"+c+"/"+encodeURIComponent(id), "PUT", doc); return true; }
-        catch(e){ return false; }
+        try{
+          const guardada = doc.est === "RECOGIDA" ? (await ENVIO.confirmar(id), doc) : await ENVIO.crear(doc);
+          cache.solicitudes = cache.solicitudes.filter(x=>x.id!==id).concat([guardada || doc]);
+          avisar(); return true;
+        }catch(e){ return false; }
       }
-      if(db){ try{ await db.doc(c+"/"+id).set(doc); return true; }catch(e){ return false; } }
-      const t = todos(c); t[id] = doc; guardar(c,t); avisar(c); return true;
+      cache.solicitudes = cache.solicitudes.filter(x=>x.id!==id).concat([doc]);
+      guardarLocal(cache.solicitudes); avisar(); return true;
     },
-
-    async del(c, id){
-      if(modo === "api"){
-        try{ await pedir("/mro/"+c+"/"+encodeURIComponent(id), "DELETE"); return true; }
-        catch(e){ return false; }
-      }
-      if(db){ try{ await db.doc(c+"/"+id).delete(); return true; }catch(e){ return false; } }
-      const t = todos(c); delete t[id]; guardar(c,t); avisar(c); return true;
-    }
+    async del(){ return true; }
   };
 })();
 
@@ -1215,169 +1245,123 @@ function Reportes({items,movs}){
 }
 
 /* ================= App ================= */
+/* Botón oficial de Google. Se dibuja cuando la librería ya cargó. */
+function BotonGoogle({onCredential, onError}){
+  const caja = React.useRef(null);
+  useEffect(()=>{
+    let cancelado = false;
+    const intentar = () => {
+      if(cancelado) return;
+      const g = window.google && window.google.accounts && window.google.accounts.id;
+      if(!g || !caja.current){ setTimeout(intentar, 300); return; }
+      if(!window.MRO_GOOGLE_CLIENT_ID){ onError('Falta configurar el Client ID de Google en config.js.'); return; }
+      try{
+        g.initialize({
+          client_id: window.MRO_GOOGLE_CLIENT_ID,
+          hd: (window.MRO_DOMINIO || 'rubber-mexico.com'),
+          callback: r => onCredential(r.credential)
+        });
+        g.renderButton(caja.current, {theme:'outline', size:'large', text:'signin_with',
+                                      shape:'rectangular', locale:'es', width:280});
+      }catch(e){ onError('No pude iniciar el acceso con Google: '+(e.message||e)); }
+    };
+    intentar();
+    return ()=>{ cancelado = true; };
+  },[]);
+  return h("div",{ref:caja, style:{display:"flex", justifyContent:"center", minHeight:44}});
+}
+
+function Entrada({onEntrar}){
+  const [error,setError] = useState("");
+  const dominio = window.MRO_DOMINIO || 'rubber-mexico.com';
+  return h("div",{className:"wrap",style:{maxWidth:520, paddingTop:56}},
+    h("div",{className:"panel",style:{textAlign:"center", padding:"36px 32px"}},
+      h("div",{style:{fontSize:26,fontWeight:700,letterSpacing:"-.02em",color:"var(--ink)"}},
+        "Solicitud de material"),
+      h("div",{className:"muted",style:{marginTop:8,marginBottom:28,fontSize:14.5}},
+        "Pide lo que necesitas al almacén MRO. Entra con tu cuenta de la empresa ",
+        h("b",null,"@"+dominio),"."),
+      h(BotonGoogle,{onCredential:c=>{
+          const r = SESION.entrar(c);
+          if(r.ok){ setError(""); onEntrar(); } else setError(r.error);
+        }, onError:setError}),
+      error ? h("div",{className:"hint warn",style:{marginTop:22,textAlign:"left"}},error) : null,
+      h("div",{className:"muted",style:{marginTop:26,fontSize:12.5}},
+        "Tu nombre y tu correo salen de Google; no se captura ninguna contraseña aquí.")));
+}
+
 function App(){
-  const [yo,setYo]           = useState(()=>load("rm_mro_yo_v1",null));
-  const [pideId,setPideId]   = useState(false);
-  const [movsDb,setMovsDb]   = useState([]);
-  const [fichas,setFichas]   = useState({});
-  const [reqs,setReqs]       = useState([]);
+  const [sesion,setSesion]   = useState(()=>SESION.valido);
   const [sols,setSols]       = useState([]);
   const [compartido,setComp] = useState(false);
-  const [demo]               = useState(()=>movsDemo(SEED_ITEMS));
-  const [tab,setTab]         = useState(null);
+  const [vista,setVista]     = useState("mis");
   const [modal,setModal]     = useState(null);
   const [toast,setToast]     = useState("");
+  const [items]              = useState(()=>SEED_ITEMS.map(o=>Object.assign({},o)));
+  const [area,setArea]       = useState(()=>{ try{ return localStorage.getItem("mro_sol_area")||""; }catch(e){ return ""; } });
 
-  useEffect(()=>{ let offs=[];
+  useEffect(()=>{ if(!sesion) return; let offs=[];
     (async()=>{
       setComp(await STORE.init());
-      offs.push(STORE.watch("movimientos", r=>setMovsDb(r)));
-      offs.push(STORE.watch("fichas",      r=>{ const o={}; r.forEach(x=>o[x.id]=x); setFichas(o); }));
-      offs.push(STORE.watch("reqs",        r=>setReqs(r)));
       offs.push(STORE.watch("solicitudes", r=>setSols(r)));
     })();
     return ()=>offs.forEach(f=>{ try{ f&&f(); }catch(e){} });
-  },[]);
-  useEffect(()=>{ if(yo) save("rm_mro_yo_v1",yo); },[yo]);
+  },[sesion]);
+  useEffect(()=>{ try{ localStorage.setItem("mro_sol_area", area); }catch(e){} },[area]);
   useEffect(()=>{ if(!toast) return; const t=setTimeout(()=>setToast(""),4200); return ()=>clearTimeout(t); },[toast]);
 
-  /* el catálogo es fijo; el stock sale de la suma de los movimientos guardados */
-  const items = useMemo(()=>{
-    const delta={}; movsDb.forEach(m=>{ delta[m.c]=(delta[m.c]||0)+(Number(m.q)||0); });
-    return SEED_ITEMS.map(o=>{ const f=fichas[o.c]||{};
-      return Object.assign({}, o, f, {c:o.c, s:(o.s||0)+(delta[o.c]||0)}); });
-  },[movsDb,fichas]);
-  const M = useMemo(()=> movsDb.concat(demo).sort((a,b)=> a.f<b.f?1:-1), [movsDb,demo]);
-
-  const esMRO = !!yo && yo.rol==="MRO";
-  const TABS = esMRO
-    ? [["sol","Solicitudes"],["panel","Panel"],["inv","Inventario"],
-       ["mov","Movimientos"],["compras","Compras"],["rep","Reportes"]]
-    : [["mis","Mis solicitudes"],["cat","Catálogo"]];
-  const vista = tab && TABS.some(t=>t[0]===tab) ? tab : TABS[0][0];
-  const bajo = items.filter(i=>i.mn>0 && i.s<i.mn).length;
-  const reqAbiertas = reqs.filter(r=>r.est!=="RECIBIDA"&&r.est!=="CANCELADA").length;
-  const nuevas = sols.filter(s=>s.est==="NUEVA").length;
-  const misListas = yo ? sols.filter(s=>s.est==="SURTIDA" && s.sol.nombre===yo.nombre).length : 0;
-  /* los líderes ya capturados alimentan el autocompletado */
-  const lideres = Array.from(new Set(sols.map(s=>s.lider||s.sup).filter(Boolean))).sort();
-
-  const aplicar = async m => {
-    await STORE.put("movimientos", m.id, Object.assign({},m,{por:m.por||(yo?yo.nombre:"")}));
-    setModal(null);
-    setToast(TIPOS[m.t].l+" registrada: "+m.c+" ("+(m.q>0?"+":"")+nf(m.q)+")");
-  };
-  const cancelarMov = async m => {
-    if(m.dem){ setToast("Ese movimiento es del historial de ejemplo, no se puede cancelar"); return; }
-    await STORE.del("movimientos", m.id);
-    setToast("Movimiento cancelado y stock revertido");
-  };
-  const guardarFicha = async d => {
-    await STORE.put("fichas", d.c, {d:d.d,k:d.k,u:d.u,l:d.l,p:d.p,pp:d.pp,
-      mn:Number(d.mn)||0,rp:Number(d.rp)||0,lt:Number(d.lt)||1,mo:Number(d.mo)||0,mu:Number(d.mu)||0});
-    setToast("Ficha actualizada");
-  };
-  const crearReqs = async porProv => {
-    const base = reqs.length;
-    const nuevasReq = Object.keys(porProv).map((p,k)=>({
-      id:uid(), folio:"REQ-"+String(base+k+1).padStart(4,"0"), f:hoy(), prov:p, est:"BORRADOR", oc:"",
-      lin: porProv[p].map(r=>({c:r.it.c, q:r.sug}))}));
-    for(const r of nuevasReq) await STORE.put("reqs", r.id, r);
-    setTab("compras");
-    setToast(nuevasReq.length+" requisición(es) de compra generada(s)");
-  };
-  const recibir = async req => {
-    const nuevos = req.lin.filter(l=>l.q>0).map(l=>({id:uid(), f:hoy(), c:l.c,
-      u:(items.find(i=>i.c===l.c)||{}).u||"PZA", t:"E", q:l.q, area:"Almacén MP",
-      req:"", proy:"", maq:"", mot:"Recepción de compra", oc:req.oc, fac:"",
-      nota:"Requisición "+req.folio, por:yo?yo.nombre:""}));
-    for(const m of nuevos) await STORE.put("movimientos", m.id, m);
-    await STORE.put("reqs", req.id, Object.assign({},req,{est:"RECIBIDA"}));
-    setModal(null);
-    setToast("Recibidas "+nuevos.length+" partes de "+req.folio);
-  };
-  const crearSol = async s => {
-    const folio = "SOL-"+String(sols.length+1).padStart(4,"0");
-    await STORE.put("solicitudes", s.id, Object.assign({},s,{folio}));
-    setModal(null);
-    setToast("Solicitud "+folio+" enviada a MRO");
-  };
-  /* el solicitante acusa de recibido y con eso se apaga su alerta */
-  const confirmarRecibo = async s => {
-    await STORE.put("solicitudes", s.id, Object.assign({},s,{est:"RECOGIDA",
-      hist:(s.hist||[]).concat([sello("RECOGIDA", yo?yo.nombre:"", "confirmó de recibido")])}));
-    setToast(s.folio+": recibido confirmado, gracias");
-  };
-  const guardarSol = async s => {
-    await STORE.put("solicitudes", s.id, s);
-    setModal(null);
-    setToast(s.folio+" → "+EST_SOL[s.est].l);
-  };
-  /* al marcarla surtida se descuenta solo lo que MRO surtió, a nombre del solicitante */
-  const surtirSol = async (s, msg) => {
-    const salidas = s.lin.filter(l=>Number(l.qs)>0).map(l=>({id:uid(), f:hoy(), c:l.c,
-      u:l.u||(items.find(i=>i.c===l.c)||{}).u||"PZA", t:"S", q:-Number(l.qs), area:s.sol.area,
-      req:s.sol.nombre, proy:"", maq:"",
-      mot: s.urg && s.urg!==URGENCIAS[0] ? "Rotura / falla" : "Consumo normal", oc:"", fac:"",
-      nota:"Solicitud "+s.folio+((s.lider||s.sup)?" · líder "+(s.lider||s.sup):""), por:yo?yo.nombre:""}));
-    for(const m of salidas) await STORE.put("movimientos", m.id, m);
-    await STORE.put("solicitudes", s.id, Object.assign({},s,{est:"SURTIDA",
-      aviso:{msg, t:new Date().toISOString(), por:yo?yo.nombre:""},
-      hist:(s.hist||[]).concat([sello("SURTIDA", yo?yo.nombre:"", "")])}));
-    setModal(null);
-    setToast(s.folio+" surtida: "+salidas.length+" renglón(es) descontados y avisado a "+s.sol.nombre);
-  };
-
-  if(!yo) return h(Fragment,null,
+  if(!sesion) return h(Fragment,null,
     h("div",{className:"hdr"},
       h("div",{className:"brand"},h("div",{className:"logo"},"MRO"),
-        h("div",null,h("div",{className:"t"},"Control de Inventario MRO"),
+        h("div",null,h("div",{className:"t"},"Solicitud de material"),
           h("div",{className:"s"},"RUBBER MEXICO · ALMACÉN MRO")))),
-    h(IdentidadModal,{yo:null,onSave:setYo,onClose:()=>{}}));
+    h(Entrada,{onEntrar:()=>setSesion(true)}));
+
+  const perfil = SESION.perfil || {};
+  const yo = { nombre: perfil.name || perfil.email || "", area, rol: "SOL" };
+  const misListas = sols.filter(s=>s.est==="SURTIDA").length;
+
+  const crearSol = async s => {
+    const folio = "SOL-"+String(Date.now()).slice(-6);
+    if(s.sol && s.sol.area) setArea(s.sol.area);
+    const ok = await STORE.put("solicitudes", s.id, Object.assign({}, s, {folio, correo: perfil.email}));
+    setModal(null);
+    setToast(ok ? "Solicitud enviada al almacén. Te avisamos aquí cuando esté lista."
+                : "No se pudo enviar. Revisa tu conexión e inténtalo otra vez.");
+  };
+  const confirmarRecibo = async s => {
+    await STORE.put("solicitudes", s.id, Object.assign({},s,{est:"RECOGIDA",
+      hist:(s.hist||[]).concat([sello("RECOGIDA", yo.nombre, "confirmó de recibido")])}));
+    setToast("Gracias, queda registrado que ya lo recogiste.");
+  };
 
   return h(Fragment,null,
     h("div",{className:"hdr"},
       h("div",{className:"brand"},h("div",{className:"logo"},"MRO"),
-        h("div",null,h("div",{className:"t"},"Control de Inventario MRO"),
+        h("div",null,h("div",{className:"t"},"Solicitud de material"),
           h("div",{className:"s"},"RUBBER MEXICO · ALMACÉN MRO"))),
       h("div",{className:"hdr-r"},
-        h("span",{className:"conn"+(compartido?" on":"")}, compartido ? "Datos compartidos" : "Sin servidor · solo este equipo"),
-        h("button",{className:"btn btn-sm",onClick:()=>setPideId(true)},
-          yo.nombre+"  ·  "+yo.area))),
+        h("span",{className:"conn"+(compartido?" on":"")}, compartido ? "En línea" : "Sin conexión al almacén"),
+        h("button",{className:"btn btn-sm",title:perfil.email||"",
+          onClick:()=>{ SESION.salir(); setSesion(false); }}, (perfil.name||perfil.email||"")+" · Salir"))),
     h("div",{className:"wrap"},
-      h("div",{className:"tabs"}, TABS.map(t=>h("button",{key:t[0],className:"tab"+(vista===t[0]?" active":""),
-        onClick:()=>setTab(t[0])}, t[1],
-        t[0]==="sol"&&nuevas ? h("span",{className:"bdg"},nuevas) : null,
-        t[0]==="mis"&&misListas ? h("span",{className:"bdg"},misListas) : null,
-        t[0]==="inv"&&bajo ? h("span",{className:"bdg"},bajo) : null,
-        t[0]==="compras"&&reqAbiertas ? h("span",{className:"bdg"},reqAbiertas) : null))),
-      vista==="sol" ? h(SolicitudesMRO,{sols,items,onOpen:s=>setModal({k:"sol",sol:s})}) : null,
+      h("div",{className:"tabs"},
+        [["mis","Mis solicitudes"],["cat","Qué puedo pedir"]].map(t=>
+          h("button",{key:t[0],className:"tab"+(vista===t[0]?" active":""),onClick:()=>setVista(t[0])}, t[1],
+            t[0]==="mis"&&misListas ? h("span",{className:"bdg"},misListas) : null))),
+      !compartido ? h("div",{className:"hint warn"},
+        h("b",null,"Todavía no está conectado al almacén. "),
+        "Lo que captures aquí no le llega a MRO. Falta publicar el backend (ver README).") : null,
       vista==="mis" ? h(MisSolicitudes,{sols,yo,onNueva:()=>setModal({k:"nueva"}),
         onOpen:s=>setModal({k:"sol",sol:s}), onConfirmar:confirmarRecibo}) : null,
-      vista==="cat" ? h(Inventario,{items,movs:M,onOpen:i=>setModal({k:"item",it:i}),onMov:null}) : null,
-      vista==="panel" ? h(Panel,{items,movs:M,reqs,go:setTab,onOpen:i=>setModal({k:"item",it:i})}) : null,
-      vista==="inv" ? h(Inventario,{items,movs:M,onOpen:i=>setModal({k:"item",it:i}),
-        onMov:(t,i)=>setModal({k:"mov",t,it:i})}) : null,
-      vista==="mov" ? h(Movimientos,{movs:M,items,onMov:(t,i)=>setModal({k:"mov",t,it:i}),onDel:cancelarMov}) : null,
-      vista==="compras" ? h(Compras,{items,movs:M,reqs,onCrear:crearReqs,onOpenReq:r=>setModal({k:"req",req:r})}) : null,
-      vista==="rep" ? h(Reportes,{items,movs:M}) : null),
-    pideId ? h(IdentidadModal,{yo,onSave:d=>{setYo(d);setPideId(false);setTab(null);},
-      onClose:()=>setPideId(false)}) : null,
-    modal&&modal.k==="nueva" ? h(NuevaSolicitudModal,{items,yo,
-      onSave:crearSol,onClose:()=>setModal(null)}) : null,
+      vista==="cat" ? h(Inventario,{items,movs:[],onOpen:i=>setModal({k:"item",it:i}),onMov:null}) : null),
+    modal&&modal.k==="nueva" ? h(NuevaSolicitudModal,{items,yo,onSave:crearSol,onClose:()=>setModal(null)}) : null,
     modal&&modal.k==="sol" ? h(SolicitudDetalle,{sol:sols.find(s=>s.id===modal.sol.id)||modal.sol,
-      items,yo,onUpd:guardarSol,onSurtir:surtirSol,onClose:()=>setModal(null)}) : null,
-    modal&&modal.k==="mov" ? h(MovModal,{tipo:modal.t,item:modal.it,items,onSave:aplicar,onClose:()=>setModal(null)}) : null,
-    modal&&modal.k==="item" ? h(ItemModal,{it:items.find(i=>i.c===modal.it.c)||modal.it,movs:M,
-      onSave:guardarFicha, onMov:esMRO?((t,i)=>setModal({k:"mov",t,it:i})):null,
+      items,yo,onUpd:()=>{},onSurtir:()=>{},onClose:()=>setModal(null)}) : null,
+    modal&&modal.k==="item" ? h(ItemModal,{it:modal.it,movs:[],onSave:()=>{},onMov:null,
       onClose:()=>setModal(null)}) : null,
-    modal&&modal.k==="req" ? h(ReqModal,{req:reqs.find(r=>r.id===modal.req.id)||modal.req,items,
-      onUpd:async r=>{ await STORE.put("reqs",r.id,r); setModal(null); setToast(r.folio+" → "+r.est); },
-      onRecibir:recibir, onClose:()=>setModal(null)}) : null,
     h("datalist",{id:"dl-items"}, items.slice(0,900).map(i=>h("option",{key:i.c,value:i.c},i.d))),
-    h("datalist",{id:"dl-lider"}, lideres.map(s=>h("option",{key:s,value:s}))),
-    h("datalist",{id:"dl-ubic"}, UBICACIONES.map(u=>h("option",{key:u,value:u}))),
-    h("datalist",{id:"dl-prov"}, PROVEEDORES.map(p=>h("option",{key:p,value:p}))),
+    h("datalist",{id:"dl-lider"}, []),
     toast ? h("div",{className:"toast"},toast) : null);
 }
 ReactDOM.createRoot(document.getElementById("root")).render(h(App));
