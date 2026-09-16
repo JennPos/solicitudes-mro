@@ -28,48 +28,56 @@ El backend **no vive aquí**: es `lambdas/mro-publico/handler.py` del repo
 `hcarter-4545/vendor-portal`, para que escriba en el mismo archivo de datos que
 lee el portal.
 
-## Los tres pasos para ponerlo en línea
+## Lo único que falta: el backend
 
-### 1. Client ID de Google (opcional, se puede dejar para después)
+El sitio ya está publicado y funcionando. Lo que todavía no existe es la ruta que
+recibe las solicitudes, y por eso el aviso naranja de arriba: **hoy lo capturado
+se queda en el navegador de cada quien**.
 
-Sin esto el sitio **ya funciona**: la persona entra escribiendo su correo
-@rubber-mexico.com. Lo que cambia es que ese correo no está comprobado, y la
-solicitud llega marcada así a la bandeja del almacén.
+Para encenderlo, en la cuenta de AWS donde vive el portal de compras:
 
-Para que quede verificado, en la consola de Google Cloud de la empresa: crear
-credenciales OAuth tipo **Aplicación web**, autorizar el origen
-`https://solicitar.rubber-mexico.com` y copiar el Client ID a `config.js`:
-
-```js
-window.MRO_GOOGLE_CLIENT_ID = '....apps.googleusercontent.com';
+```bash
+# en el repo hcarter-4545/vendor-portal
+python3 lambdas/deploy.py --function-name vendor-portal-update-vendor   # la sección del portal
 ```
 
-### 2. El backend
+y desplegar `lambdas/mro-publico/handler.py` como función propia, colgada de
+**`POST /mro-publico` sin el autorizador de Cognito** — es la única ruta abierta,
+porque quien pide material no tiene cuenta del portal.
 
-En el repo `vendor-portal`, desplegar la función `lambdas/mro-publico/handler.py`
-y **colgarla de una ruta `POST /mro-publico` sin el autorizador de Cognito** —
-es la única ruta abierta, porque quien pide material no tiene cuenta del portal.
-La función necesita estas variables de entorno:
+Variables de entorno de esa función:
 
 | Variable | Valor |
 |---|---|
 | `DATA_BUCKET` | el mismo bucket de datos del portal |
-| `MRO_GOOGLE_CLIENT_ID` | el Client ID del paso 1 |
 | `MRO_DOMINIO` | `rubber-mexico.com` |
-| `MRO_ALLOW_ORIGIN` | `https://solicitar.rubber-mexico.com` |
+| `MRO_ALLOW_ORIGIN` | `https://solicitudesmro.github.io` |
+| `MRO_GOOGLE_CLIENT_ID` | opcional, ver abajo |
 
-Permisos de la función: leer y escribir `data/mro_solicitudes.json` en ese bucket.
+Permisos: leer y escribir `data/mro_solicitudes.json` en ese bucket.
 
-Después, poner la URL del API en `config.js`:
+Después, poner la URL del API en `config.js` y subir el cambio:
 
 ```js
 window.MRO_API_BASE = 'https://XXXXXXXX.execute-api.us-west-2.amazonaws.com/prod';
 ```
 
-### 3. El sitio
+El sitio se republica solo y el aviso desaparece.
 
-Conectar este repositorio a Amplify (sin comandos de build) y apuntar el
-dominio `solicitar.rubber-mexico.com`.
+## Opcional: entrar con Google en vez de escribir el correo
+
+Hoy la persona escribe su correo @rubber-mexico.com y su nombre. Funciona, pero
+ese correo no está comprobado y la solicitud se guarda marcada así.
+
+Para que quede verificado: crear credenciales OAuth tipo **Aplicación web** en la
+consola de Google Cloud de la empresa, autorizar el origen
+`https://solicitudesmro.github.io`, y poner el Client ID en `config.js`. El botón
+de Google aparece solo.
+
+## Si algún día quieren dominio propio
+
+`solicitar.rubber-mexico.com` se logra apuntando un CNAME a GitHub Pages y
+declarándolo en la configuración del repositorio. No hace falta Amplify.
 
 ## Mientras falte algo
 
