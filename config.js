@@ -1,7 +1,10 @@
 /* Configuración del portal de solicitudes — se edita aquí, sin recompilar.
  *
- * 1. GOOGLE_CLIENT_ID: el ID de cliente OAuth (tipo "Aplicación web") que se
- *    crea en la consola de Google Cloud de la empresa. Hay que autorizar el
+ * 1. GOOGLE_CLIENT_ID: OPCIONAL. Si se llena, la gente entra con el botón de
+ *    Google y su correo queda verificado. Si se deja vacío, entran escribiendo
+ *    su correo @rubber-mexico.com — funciona igual, pero el correo no está
+ *    comprobado y la solicitud se marca así en la bandeja del almacén.
+ *    Se crea en la consola de Google Cloud de la empresa, autorizando el
  *    origen https://solicitar.rubber-mexico.com.
  *
  * 2. MRO_API_BASE: la URL del API Gateway del portal de compras — la misma
