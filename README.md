@@ -23,7 +23,6 @@ mover stock. Sólo pide y da seguimiento.
 | `index.html` | El sitio completo. Un archivo, React por CDN, sin build. |
 | `config.js` | **Lo único que se edita.** Client ID de Google y URL del API. |
 | `amplify.yml` | Publicación estática en AWS Amplify (sin paso de build). |
-| `_catalogo_fuente.js` | El catálogo suelto, por si hay que regenerarlo. No lo carga el sitio. |
 
 El backend **no vive aquí**: es `lambdas/mro-publico/handler.py` del repo
 `hcarter-4545/vendor-portal`, para que escriba en el mismo archivo de datos que
@@ -31,11 +30,15 @@ lee el portal.
 
 ## Los tres pasos para ponerlo en línea
 
-### 1. Client ID de Google
+### 1. Client ID de Google (opcional, se puede dejar para después)
 
-En la consola de Google Cloud de la empresa, crear credenciales OAuth tipo
-**Aplicación web** y autorizar el origen `https://solicitar.rubber-mexico.com`.
-Copiar el Client ID a `config.js`:
+Sin esto el sitio **ya funciona**: la persona entra escribiendo su correo
+@rubber-mexico.com. Lo que cambia es que ese correo no está comprobado, y la
+solicitud llega marcada así a la bandeja del almacén.
+
+Para que quede verificado, en la consola de Google Cloud de la empresa: crear
+credenciales OAuth tipo **Aplicación web**, autorizar el origen
+`https://solicitar.rubber-mexico.com` y copiar el Client ID a `config.js`:
 
 ```js
 window.MRO_GOOGLE_CLIENT_ID = '....apps.googleusercontent.com';
@@ -82,3 +85,14 @@ la empresa, y **de ahí saca el correo**. Nada de lo que el navegador diga sobre
 quién es se toma por cierto. Por eso el solicitante sólo puede crear sus
 solicitudes y confirmar de recibido las suyas: surtir y descontar inventario
 vive del otro lado, en el portal.
+
+## Este repositorio es público
+
+Por eso aquí no hay nada interno: el catálogo que viaja en `index.html` trae
+sólo número de parte, descripción, unidad y familia — lo que necesita alguien
+para pedir. **Sin existencias, sin ubicaciones de rack, sin proveedores ni
+costos.** Esos datos viven del otro lado, en el portal de compras, detrás de su
+autenticación.
+
+Si algún día hace falta agregar información al catálogo de este sitio, vale la
+pena preguntarse antes si debe leerse en internet abierto.
