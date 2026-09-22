@@ -322,9 +322,14 @@ const ENVIO = (function(){
   const API = (window.MRO_API_BASE || '').replace(/\/+$/,'');
   async function llamar(action, extra){
     if(!API) throw new Error('sin API');
+    /* El API del CNC exige su llave en cada llamada. No es un secreto: es
+       una llave de cuota, la misma que ya viaja en el resto de las paginas
+       del portal. Quien decide quien eres es el servidor, no esta llave. */
+    const h = {'Content-Type':'application/json'};
+    if(window.MRO_API_KEY) h['x-api-key'] = window.MRO_API_KEY;
     const r = await fetch(API + '/mro-publico', {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: h,
       body: JSON.stringify(Object.assign({action, google_token: SESION.token,
         correo_declarado: SESION.token ? null : (SESION.perfil||{}).email,
         nombre_declarado: SESION.token ? null : (SESION.perfil||{}).name}, extra||{}))
