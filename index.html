@@ -6,7 +6,10 @@
 <title>Solicitud de material — MRO</title>
 <script src="https://purchasing.rubber-mexico.com/app-switcher.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js"></script>
+<!-- La version evita que el navegador se quede con un config.js viejo:
+     es justo el archivo que se edita para reconfigurar, y sin esto un
+     cambio puede tardar horas en verse. Subirla al editarlo. -->
+<script src="config.js?v=2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <style>
