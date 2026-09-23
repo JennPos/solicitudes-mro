@@ -1004,9 +1004,16 @@ function NuevaSolicitudModal({items,yo,onSave,onClose}){
         it ? h("div",{className:"muted",style:{fontSize:12.5,padding:"4px 2px"}},
               it.d+" · se pide por "+it.u,
               /* Los guantes y las botas se compran por par y NetSuite los lleva
-                 así. Sin decirlo, el área pide "10" pensando en diez guantes y
-                 le llegan veinte. */
-              it.u==="PAR" ? h("b",null," — 1 par = 2 piezas") : null)
+                 así, pero en el área se cuentan por pieza. En vez de pedirles
+                 que cambien la forma de contar, se les dice cuántas piezas
+                 son: así nadie pide "10" pensando en diez guantes y recibe
+                 veinte. */
+              it.u==="PAR"
+                ? h("b",null, Number(l.q)>0
+                    ? " — " + Number(l.q) + (Number(l.q)===1?" par son ":" pares son ")
+                      + (Number(l.q)*2) + " piezas"
+                    : " — 1 par son 2 piezas")
+                : null)
           : (l.c ? h("div",{style:{fontSize:12.5,padding:"4px 2px",color:"var(--warn)"}},
               "No encontré esa parte — revisa el número o descríbela en el comentario") : null));
     }),
