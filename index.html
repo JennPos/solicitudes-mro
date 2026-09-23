@@ -1002,7 +1002,11 @@ function NuevaSolicitudModal({items,yo,onSave,onClose}){
           h("button",{className:"btn btn-sm btn-danger btn-icon",title:"Quitar renglón",disabled:lin.length===1,
             onClick:()=>setLin(lin.filter((x,j)=>j!==i))},"✕")),
         it ? h("div",{className:"muted",style:{fontSize:12.5,padding:"4px 2px"}},
-              it.d+" · se pide por "+it.u)
+              it.d+" · se pide por "+it.u,
+              /* Los guantes y las botas se compran por par y NetSuite los lleva
+                 así. Sin decirlo, el área pide "10" pensando en diez guantes y
+                 le llegan veinte. */
+              it.u==="PAR" ? h("b",null," — 1 par = 2 piezas") : null)
           : (l.c ? h("div",{style:{fontSize:12.5,padding:"4px 2px",color:"var(--warn)"}},
               "No encontré esa parte — revisa el número o descríbela en el comentario") : null));
     }),
